@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"github.com/jinzhu/gorm"
+	"github.com/smartcontractkit/chainlink/core/store/models"
 )
 
 type RegistryStore interface {
@@ -10,6 +11,7 @@ type RegistryStore interface {
 	Upsert(registration) error
 	UpdateRanAt(registration, uint64) error
 	BatchDelete(registryID uint32, upkeedIDs []uint64) error
+	DeleteRegistryByJobID(jobID *models.ID) error
 	Active(chainHeight uint64) ([]registration, error)
 }
 
@@ -57,6 +59,13 @@ func (rm registryStore) BatchDelete(registryID uint32, upkeedIDs []uint64) error
 	return rm.dbClient.
 		Where("registry_id = ? AND upkeep_id IN (?)", registryID, upkeedIDs).
 		Delete(registration{}).
+		Error
+}
+
+func (rm registryStore) DeleteRegistryByJobID(jobID *models.ID) error {
+	return rm.dbClient.
+		Where("job_id = ?", jobID).
+		Delete(registry{}).
 		Error
 }
 

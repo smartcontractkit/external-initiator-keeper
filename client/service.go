@@ -94,7 +94,8 @@ func startService(
 		}
 	}()
 
-	go RunWebserver(config.ChainlinkToInitiatorAccessKey, config.ChainlinkToInitiatorSecret, srv, config.Port)
+	keeperStore := keeper.NewRegistryStore(dbClient.DB(), uint64(config.KeeperBlockCooldown))
+	go RunWebserver(config.ChainlinkToInitiatorAccessKey, config.ChainlinkToInitiatorSecret, srv, keeperStore, config.Port)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
