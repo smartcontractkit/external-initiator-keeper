@@ -64,9 +64,6 @@ func generateCmd() *cobra.Command {
 	newcmd.Flags().Duration("cl_retry_delay", 1*time.Second, "The delay between attempts for job run triggers")
 	must(v.BindPFlag("cl_retry_delay", newcmd.Flags().Lookup("cl_retry_delay")))
 
-	newcmd.Flags().Int64("keeper_block_cooldown", 3, "Number of blocks to cool down before triggering a new run for a Keeper job")
-	must(v.BindPFlag("keeper_block_cooldown", newcmd.Flags().Lookup("keeper_block_cooldown")))
-
 	newcmd.Flags().String("keeper_eth_endpoint", "", "The ethereum endpoint to use for keeper jobs")
 	must(v.BindPFlag("keeper_eth_endpoint", newcmd.Flags().Lookup("keeper_eth_endpoint")))
 

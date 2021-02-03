@@ -18,21 +18,22 @@ var checkData = common.Hex2Bytes(checkDataStr)
 var jobID = models.NewID()
 var executeGas = uint32(10_000)
 var checkGas = uint32(2_000_000)
-var cooldown = uint64(3)
+var blockCountPerTurn = uint32(20)
 
 func setupRegistryStore(t *testing.T) (*store.Client, RegistryStore, func()) {
 	db, cleanup := store.SetupTestDB(t)
-	regStore := NewRegistryStore(db.DB(), cooldown)
+	regStore := NewRegistryStore(db.DB())
 	return db, regStore, cleanup
 }
 
 func newRegistry() registry {
 	return registry{
-		Address:     registryAddress,
-		CheckGas:    checkGas,
-		JobID:       jobID,
-		From:        fromAddress,
-		ReferenceID: uuid.New().String(),
+		Address:           registryAddress,
+		CheckGas:          checkGas,
+		JobID:             jobID,
+		From:              fromAddress,
+		BlockCountPerTurn: blockCountPerTurn,
+		ReferenceID:       uuid.New().String(),
 	}
 }
 
@@ -162,31 +163,50 @@ func TestRegistryStore_DeleteRegistryByJobID(t *testing.T) {
 	assertRegistrationCount(t, db, 0)
 }
 
-func TestRegistryStore_Active(t *testing.T) {
+func TestRegistryStore_Eligibile(t *testing.T) {
 	db, regStore, cleanup := setupRegistryStore(t)
 	defer cleanup()
 
-	// create registry
-	reg := newRegistry()
-	err := db.DB().Create(&reg).Error
+	blockheight := uint64(40)
+
+	// create registries
+	reg1 := registry{
+		Address:           common.HexToAddress("0x0000000000000000000000000000000000000123"),
+		CheckGas:          checkGas,
+		JobID:             models.NewID(),
+		From:              fromAddress,
+		BlockCountPerTurn: 20,
+		ReferenceID:       uuid.New().String(),
+	}
+	reg2 := registry{
+		Address:           common.HexToAddress("0x0000000000000000000000000000000000000321"),
+		CheckGas:          checkGas,
+		JobID:             models.NewID(),
+		From:              fromAddress,
+		BlockCountPerTurn: 30,
+		ReferenceID:       uuid.New().String(),
+	}
+	err := db.DB().Create(&reg1).Error
+	require.NoError(t, err)
+	err = db.DB().Create(&reg2).Error
 	require.NoError(t, err)
 
 	registrations := [3]registration{
-		{ // valid
+		{ // our turn
 			UpkeepID:           0,
 			LastRunBlockHeight: 0, // 0 means never
 			ExecuteGas:         executeGas,
-			Registry:           reg,
-		}, { // valid
+			Registry:           reg1,
+		}, { // our turn
 			UpkeepID:           1,
-			LastRunBlockHeight: 6,
+			LastRunBlockHeight: 0,
 			ExecuteGas:         executeGas,
-			Registry:           reg,
-		}, { // too recent
-			UpkeepID:           2,
-			LastRunBlockHeight: 7,
+			Registry:           reg1,
+		}, { // not our turn
+			UpkeepID:           0,
+			LastRunBlockHeight: 0,
 			ExecuteGas:         executeGas,
-			Registry:           reg,
+			Registry:           reg2,
 		},
 	}
 
@@ -197,19 +217,25 @@ func TestRegistryStore_Active(t *testing.T) {
 
 	assertRegistrationCount(t, db, 3)
 
-	activeRegistrations, err := regStore.Active(10)
+	elligibleRegistrations, err := regStore.Eligible(blockheight)
 	assert.NoError(t, err)
-	assert.Len(t, activeRegistrations, 2)
-	assert.Equal(t, uint64(0), activeRegistrations[0].UpkeepID)
-	assert.Equal(t, uint64(1), activeRegistrations[1].UpkeepID)
+	assert.Len(t, elligibleRegistrations, 2)
+	assert.Equal(t, uint64(0), elligibleRegistrations[0].UpkeepID)
+	assert.Equal(t, uint64(1), elligibleRegistrations[1].UpkeepID)
 
 	// preloads registry data
-	assert.Equal(t, reg.ID, activeRegistrations[0].RegistryID)
-	assert.Equal(t, reg.ID, activeRegistrations[1].RegistryID)
-	assert.Equal(t, reg.CheckGas, activeRegistrations[0].Registry.CheckGas)
-	assert.Equal(t, reg.CheckGas, activeRegistrations[1].Registry.CheckGas)
-	assert.Equal(t, reg.Address, activeRegistrations[0].Registry.Address)
-	assert.Equal(t, reg.Address, activeRegistrations[1].Registry.Address)
+	assert.Equal(t, reg1.ID, elligibleRegistrations[0].RegistryID)
+	assert.Equal(t, reg1.ID, elligibleRegistrations[1].RegistryID)
+	assert.Equal(t, reg1.CheckGas, elligibleRegistrations[0].Registry.CheckGas)
+	assert.Equal(t, reg1.CheckGas, elligibleRegistrations[1].Registry.CheckGas)
+	assert.Equal(t, reg1.Address, elligibleRegistrations[0].Registry.Address)
+	assert.Equal(t, reg1.Address, elligibleRegistrations[1].Registry.Address)
+}
+
+func assertRegistryCount(t *testing.T, db *store.Client, expected int) {
+	var count int
+	db.DB().Model(&registry{}).Count(&count)
+	require.Equal(t, expected, count)
 }
 
 func assertRegistryCount(t *testing.T, db *store.Client, expected int) {

@@ -21,7 +21,7 @@ type RegistrySynchronizer interface {
 func NewRegistrySynchronizer(dbClient *gorm.DB, config store.RuntimeConfig) RegistrySynchronizer {
 	return registrySynchronizer{
 		endpoint:      config.KeeperEthEndpoint,
-		registryStore: NewRegistryStore(dbClient, uint64(config.KeeperBlockCooldown)),
+		registryStore: NewRegistryStore(dbClient),
 		interval:      config.KeeperRegistrySyncInterval,
 	}
 }
