@@ -3,6 +3,7 @@ package keeper
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -57,6 +58,7 @@ type upkeepExecuter struct {
 	endpoint      string
 	ethClient     *ethclient.Client
 	registryStore RegistryStore
+	isRunning     atomic.Bool
 
 	executionQueue chan struct{}
 	chDone         chan struct{}
@@ -66,6 +68,11 @@ type upkeepExecuter struct {
 var _ UpkeepExecuter = upkeepExecuter{} // upkeepExecuter satisfies UpkeepExecuter
 
 func (executer upkeepExecuter) Start() error {
+	if executer.isRunning.Load() {
+		return errors.New("already started")
+	}
+	executer.isRunning.Store(true)
+
 	ethClient, err := ethclient.Dial(executer.endpoint)
 	if err != nil {
 		return err
