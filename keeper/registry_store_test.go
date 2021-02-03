@@ -191,7 +191,11 @@ func TestRegistryStore_DeleteRegistryByJobID(t *testing.T) {
 	assertRegistrationCount(t, db, 0)
 }
 
+<<<<<<< HEAD
 func TestRegistryStore_Eligibile_BlockCountPerTurn(t *testing.T) {
+=======
+func TestRegistryStore_Eligibile(t *testing.T) {
+>>>>>>> make keeper-EI delete registries when jobs are deleted
 	db, regStore, cleanup := setupRegistryStore(t)
 	defer cleanup()
 
@@ -200,22 +204,36 @@ func TestRegistryStore_Eligibile_BlockCountPerTurn(t *testing.T) {
 	// create registries
 	reg1 := registry{
 		Address:           common.HexToAddress("0x0000000000000000000000000000000000000123"),
+<<<<<<< HEAD
 		BlockCountPerTurn: 20,
 		CheckGas:          checkGas,
 		From:              fromAddress,
 		JobID:             models.NewID(),
 		KeeperIndex:       0,
 		NumKeepers:        1,
+=======
+		CheckGas:          checkGas,
+		JobID:             models.NewID(),
+		From:              fromAddress,
+		BlockCountPerTurn: 20,
+>>>>>>> make keeper-EI delete registries when jobs are deleted
 		ReferenceID:       uuid.New().String(),
 	}
 	reg2 := registry{
 		Address:           common.HexToAddress("0x0000000000000000000000000000000000000321"),
+<<<<<<< HEAD
 		BlockCountPerTurn: 30,
 		CheckGas:          checkGas,
 		From:              fromAddress,
 		JobID:             models.NewID(),
 		KeeperIndex:       0,
 		NumKeepers:        1,
+=======
+		CheckGas:          checkGas,
+		JobID:             models.NewID(),
+		From:              fromAddress,
+		BlockCountPerTurn: 30,
+>>>>>>> make keeper-EI delete registries when jobs are deleted
 		ReferenceID:       uuid.New().String(),
 	}
 	err := db.DB().Create(&reg1).Error
@@ -225,6 +243,7 @@ func TestRegistryStore_Eligibile_BlockCountPerTurn(t *testing.T) {
 
 	registrations := [3]registration{
 		{ // our turn
+<<<<<<< HEAD
 			UpkeepID:   0,
 			ExecuteGas: executeGas,
 			Registry:   reg1,
@@ -236,6 +255,22 @@ func TestRegistryStore_Eligibile_BlockCountPerTurn(t *testing.T) {
 			UpkeepID:   0,
 			ExecuteGas: executeGas,
 			Registry:   reg2,
+=======
+			UpkeepID:           0,
+			LastRunBlockHeight: 0, // 0 means never
+			ExecuteGas:         executeGas,
+			Registry:           reg1,
+		}, { // our turn
+			UpkeepID:           1,
+			LastRunBlockHeight: 0,
+			ExecuteGas:         executeGas,
+			Registry:           reg1,
+		}, { // not our turn
+			UpkeepID:           0,
+			LastRunBlockHeight: 0,
+			ExecuteGas:         executeGas,
+			Registry:           reg2,
+>>>>>>> make keeper-EI delete registries when jobs are deleted
 		},
 	}
 
@@ -261,6 +296,7 @@ func TestRegistryStore_Eligibile_BlockCountPerTurn(t *testing.T) {
 	assert.Equal(t, reg1.Address, elligibleRegistrations[1].Registry.Address)
 }
 
+<<<<<<< HEAD
 func TestRegistryStore_Eligibile_KeepersRotate(t *testing.T) {
 	db, regStore, cleanup := setupRegistryStore(t)
 	defer cleanup()
@@ -309,6 +345,8 @@ func TestRegistryStore_Eligibile_KeepersRotate(t *testing.T) {
 	require.Equal(t, 1, totalEligible)
 }
 
+=======
+>>>>>>> make keeper-EI delete registries when jobs are deleted
 func assertRegistryCount(t *testing.T, db *store.Client, expected int) {
 	var count int
 	db.DB().Model(&registry{}).Count(&count)
