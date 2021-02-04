@@ -10,6 +10,7 @@ func Migrate(tx *gorm.DB) error {
 	return tx.Exec(`
 		CREATE TABLE keeper_registries (
 			id SERIAL PRIMARY KEY,
+			keeper_index int NOT NULL,
 			reference_id uuid UNIQUE NOT NULL,
 			address bytea UNIQUE NOT NULL,
 			"from" bytea NOT NULL,

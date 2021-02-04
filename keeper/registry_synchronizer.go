@@ -96,14 +96,12 @@ func (rs registrySynchronizer) syncRegistry(registry registry) {
 		return
 	}
 
-	// update registry config
-	config, err := contract.GetConfig(nil)
+	registry, err = registry.SyncFromContract(contract)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
-	registry.CheckGas = config.CheckGasLimit
-	registry.BlockCountPerTurn = uint32(config.BlockCountPerTurn.Uint64())
+
 	err = rs.registryStore.UpdateRegistry(registry)
 	if err != nil {
 		logger.Error(err)
