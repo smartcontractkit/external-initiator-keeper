@@ -193,20 +193,17 @@ func TestRegistryStore_Eligibile(t *testing.T) {
 
 	registrations := [3]registration{
 		{ // our turn
-			UpkeepID:           0,
-			LastRunBlockHeight: 0, // 0 means never
-			ExecuteGas:         executeGas,
-			Registry:           reg1,
+			UpkeepID:   0,
+			ExecuteGas: executeGas,
+			Registry:   reg1,
 		}, { // our turn
-			UpkeepID:           1,
-			LastRunBlockHeight: 0,
-			ExecuteGas:         executeGas,
-			Registry:           reg1,
+			UpkeepID:   1,
+			ExecuteGas: executeGas,
+			Registry:   reg1,
 		}, { // not our turn
-			UpkeepID:           0,
-			LastRunBlockHeight: 0,
-			ExecuteGas:         executeGas,
-			Registry:           reg2,
+			UpkeepID:   0,
+			ExecuteGas: executeGas,
+			Registry:   reg2,
 		},
 	}
 

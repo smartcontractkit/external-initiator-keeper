@@ -9,10 +9,9 @@ type RegistryStore interface {
 	Registries() ([]registry, error)
 	UpdateRegistry(registry registry) error
 	Upsert(registration) error
-	UpdateRanAt(registration, uint64) error
 	BatchDelete(registryID uint32, upkeedIDs []uint64) error
 	DeleteRegistryByJobID(jobID *models.ID) error
-	Eligible(chainHeight uint64) ([]registration, error)
+	Eligible(blockNumber uint64) ([]registration, error)
 }
 
 func NewRegistryStore(dbClient *gorm.DB) RegistryStore {
@@ -48,11 +47,6 @@ func (rm registryStore) Upsert(registration registration) error {
 		Error
 }
 
-func (rm registryStore) UpdateRanAt(registration registration, chainHeight uint64) error {
-	registration.LastRunBlockHeight = chainHeight
-	return rm.dbClient.Save(&registration).Error
-}
-
 func (rm registryStore) BatchDelete(registryID uint32, upkeedIDs []uint64) error {
 	return rm.dbClient.
 		Where("registry_id = ? AND upkeep_id IN (?)", registryID, upkeedIDs).
@@ -67,10 +61,10 @@ func (rm registryStore) DeleteRegistryByJobID(jobID *models.ID) error {
 		Error
 }
 
-func (rm registryStore) Eligible(chainHeight uint64) (result []registration, _ error) {
+func (rm registryStore) Eligible(blockNumber uint64) (result []registration, _ error) {
 	err := rm.dbClient.
 		Joins("INNER JOIN keeper_registries ON keeper_registries.id = keeper_registrations.registry_id").
-		Where("? % keeper_registries.block_count_per_turn = 0", chainHeight).
+		Where("? % keeper_registries.block_count_per_turn = 0", blockNumber).
 		Find(&result).
 		Error
 

@@ -25,7 +25,6 @@ func Migrate(tx *gorm.DB) error {
 			registry_id INT NOT NULL REFERENCES keeper_registries (id) ON DELETE CASCADE,
 			execute_gas int NOT NULL,
 			check_data bytea NOT NULL,
-			last_run_block_height bigInt DEFAULT 0 NOT NULL,
 			upkeep_id bigint NOT NULL
 		);
 
