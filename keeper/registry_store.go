@@ -44,7 +44,6 @@ func (rm registryStore) Upsert(registration registration) error {
 				check_data = excluded.check_data
 			`,
 		).
-		Set("gorm:save_associations", false).
 		Create(&registration).
 		Error
 }

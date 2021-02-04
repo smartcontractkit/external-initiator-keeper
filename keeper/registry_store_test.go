@@ -1,7 +1,6 @@
 package keeper
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -81,7 +80,7 @@ func TestRegistryStore_Upsert(t *testing.T) {
 
 	// create registration
 	newRegistration := newRegistration(reg, 0)
-	fmt.Println("newRegistration.Registry.ID", newRegistration.Registry.ID)
+
 	err = regStore.Upsert(newRegistration)
 	require.NoError(t, err)
 
@@ -138,8 +137,6 @@ func TestRegistryStore_BatchDelete(t *testing.T) {
 func TestRegistryStore_Active(t *testing.T) {
 	db, regStore, cleanup := setupRegistryStore(t)
 	defer cleanup()
-
-	db.DB().LogMode(true)
 
 	// create registry
 	reg := newRegistry()
