@@ -9,11 +9,15 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 	"github.com/smartcontractkit/chainlink/core/logger"
+	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/external-initiator/blockchain"
+	"github.com/smartcontractkit/external-initiator/keeper"
 	"github.com/smartcontractkit/external-initiator/store"
 )
 
@@ -27,6 +31,7 @@ type subscriptionStorer interface {
 	DeleteJob(jobid string) error
 	GetEndpoint(name string) (*store.Endpoint, error)
 	SaveEndpoint(endpoint *store.Endpoint) error
+	DB() *gorm.DB
 }
 
 // RunWebserver starts a new web server using the access key
@@ -137,6 +142,13 @@ func (srv *HttpService) CreateSubscription(c *gin.Context) {
 	if err := c.BindJSON(&req); err != nil {
 		logger.Error(err)
 		c.JSON(http.StatusBadRequest, nil)
+		return
+	}
+
+	// HACK - making an exception to the normal workflow for keepers
+	// since they will be removed from EI at a later date
+	if req.Params.Endpoint == "keeper" {
+		srv.createKeeperSubscription(req, c)
 		return
 	}
 
@@ -284,4 +296,37 @@ func readSanitizedJSON(buf *bytes.Buffer) (string, error) {
 		return "", err
 	}
 	return string(b), err
+}
+
+func (srv *HttpService) createKeeperSubscription(req CreateSubscriptionReq, c *gin.Context) {
+	if err := validateKeeperRequest(&req); err != nil {
+		logger.Error(err)
+		c.JSON(http.StatusBadRequest, nil)
+		return
+	}
+
+	jobID, err := models.NewIDFromString(req.JobID)
+	if err != nil {
+		logger.Error(err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+	address := common.HexToAddress(req.Params.Address)
+	from := common.HexToAddress(req.Params.From)
+	reg := keeper.NewRegistry(address, from, jobID)
+	err = srv.Store.DB().Create(&reg).Error
+	if err != nil {
+		logger.Error(err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+
+	c.JSON(http.StatusCreated, resp{ID: reg.ReferenceID})
+}
+
+func validateKeeperRequest(req *CreateSubscriptionReq) error {
+	if req.Params.Address == "" || req.Params.From == "" || req.JobID == "" {
+		return errors.New("missing required fields")
+	}
+	return nil
 }

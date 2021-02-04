@@ -9,10 +9,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 	"github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/external-initiator/blockchain"
 	"github.com/smartcontractkit/external-initiator/chainlink"
+	"github.com/smartcontractkit/external-initiator/keeper"
 	"github.com/smartcontractkit/external-initiator/store"
 	"github.com/smartcontractkit/external-initiator/subscriber"
 )
@@ -26,6 +28,7 @@ type storeInterface interface {
 	SaveSubscription(arg *store.Subscription) error
 	DeleteSubscription(subscription *store.Subscription) error
 	SaveEndpoint(e *store.Endpoint) error
+	DB() *gorm.DB
 }
 
 // startService runs the Service in the background and gracefully stops when a
@@ -55,7 +58,9 @@ func startService(
 			Delay:    config.ChainlinkRetryDelay,
 		},
 	}, store.RuntimeConfig{
-		KeeperBlockCooldown: config.KeeperBlockCooldown,
+		KeeperBlockCooldown:        config.KeeperBlockCooldown,
+		KeeperEthEndpoint:          config.KeeperEthEndpoint,
+		KeeperRegistrySyncInterval: config.KeeperRegistrySyncInterval,
 	})
 
 	var names []string
@@ -102,10 +107,12 @@ func startService(
 // Service holds the main process for running
 // the external initiator.
 type Service struct {
-	clNode        chainlink.Node
-	store         storeInterface
-	subscriptions map[string]*activeSubscription
-	runtimeConfig store.RuntimeConfig
+	clNode               chainlink.Node
+	store                storeInterface
+	subscriptions        map[string]*activeSubscription
+	runtimeConfig        store.RuntimeConfig
+	upkeepExecuter       keeper.UpkeepExecuter
+	registrySynchronizer keeper.RegistrySynchronizer
 }
 
 func validateEndpoint(endpoint store.Endpoint) error {
@@ -132,16 +139,37 @@ func NewService(
 	clNode chainlink.Node,
 	runtimeConfig store.RuntimeConfig,
 ) *Service {
+	upkeepExecuter := keeper.NewNoOpUpkeepExecuter()
+	registrySynchronizer := keeper.NewNoOpRegistrySynchronizer()
+	if runtimeConfig.KeeperEthEndpoint != "" {
+		logger.Info("Enabling Keeper Service")
+		upkeepExecuter = keeper.NewUpkeepExecuter(dbClient.DB(), clNode, runtimeConfig)
+		registrySynchronizer = keeper.NewRegistrySynchronizer(dbClient.DB(), runtimeConfig)
+	}
+
 	return &Service{
-		store:         dbClient,
-		clNode:        clNode,
-		subscriptions: make(map[string]*activeSubscription),
-		runtimeConfig: runtimeConfig,
+		store:                dbClient,
+		clNode:               clNode,
+		subscriptions:        make(map[string]*activeSubscription),
+		runtimeConfig:        runtimeConfig,
+		upkeepExecuter:       upkeepExecuter,
+		registrySynchronizer: registrySynchronizer,
 	}
 }
 
 // Run loads subscriptions, validates and subscribes to them.
 func (srv *Service) Run() error {
+
+	err := srv.upkeepExecuter.Start()
+	if err != nil {
+		return err
+	}
+
+	err = srv.registrySynchronizer.Start()
+	if err != nil {
+		return err
+	}
+
 	subs, err := srv.store.LoadSubscriptions()
 	if err != nil {
 		return err
@@ -194,6 +222,8 @@ func closeSubscription(sub *activeSubscription) {
 // Close shuts down any open subscriptions and closes
 // the database client.
 func (srv *Service) Close() {
+	srv.upkeepExecuter.Stop()
+
 	for _, sub := range srv.subscriptions {
 		closeSubscription(sub)
 	}
@@ -309,6 +339,11 @@ func (srv *Service) SaveEndpoint(e *store.Endpoint) error {
 		return err
 	}
 	return srv.store.SaveEndpoint(e)
+}
+
+// SaveEndpoint validates and stores the store.Endpoint provided.
+func (srv *Service) DB() *gorm.DB {
+	return srv.store.DB()
 }
 
 func getSubscriber(sub store.Subscription) (subscriber.ISubscriber, error) {

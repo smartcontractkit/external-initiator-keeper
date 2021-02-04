@@ -11,6 +11,7 @@ require (
 	github.com/ethereum/go-ethereum v1.9.24
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a
 	github.com/gin-gonic/gin v1.6.0
+	github.com/golang-collections/go-datastructures v0.0.0-20150211160725-59788d5eb259
 	github.com/golang/mock v1.4.4
 	github.com/google/uuid v1.1.2
 	github.com/gorilla/websocket v1.4.2
@@ -19,6 +20,7 @@ require (
 	github.com/magiconair/properties v1.8.1
 	github.com/mattn/go-sqlite3 v2.0.1+incompatible // indirect
 	github.com/ontio/ontology-go-sdk v1.11.1
+	github.com/pborman/uuid v1.2.0
 	github.com/pierrec/xxHash v0.1.5 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/smartcontractkit/chainlink v0.9.5-0.20201214122441-66aaea171293
@@ -28,6 +30,7 @@ require (
 	github.com/stretchr/testify v1.6.1
 	github.com/tendermint/tendermint v0.34.0
 	github.com/tidwall/gjson v1.6.3
+	go.uber.org/atomic v1.7.0
 	go.uber.org/zap v1.16.0
 	google.golang.org/grpc v1.33.2
 	gopkg.in/gormigrate.v1 v1.6.0

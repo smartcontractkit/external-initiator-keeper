@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/pkg/errors"
@@ -106,6 +105,11 @@ func (client Client) Close() error {
 	return client.db.Close()
 }
 
+// DB return the underlying gorm db
+func (client Client) DB() *gorm.DB {
+	return client.db
+}
+
 func (client Client) prepareSubscription(rawSub *Subscription) (*Subscription, error) {
 	endpoint, err := client.LoadEndpoint(rawSub.EndpointName)
 	if err != nil {
@@ -147,10 +151,6 @@ func (client Client) prepareSubscription(rawSub *Subscription) (*Subscription, e
 		}
 	case "near":
 		if err := client.db.Model(&sub).Related(&sub.NEAR).Error; err != nil {
-			return nil, err
-		}
-	case "keeper":
-		if err := client.db.Model(&sub).Related(&sub.Keeper).Error; err != nil {
 			return nil, err
 		}
 	case "bsn-irita":
@@ -295,7 +295,6 @@ type Subscription struct {
 	BinanceSmartChain BinanceSmartChainSubscription
 	NEAR              NEARSubscription
 	Conflux           CfxSubscription
-	Keeper            KeeperSubscription
 	BSNIrita          BSNIritaSubscription
 }
 
@@ -341,14 +340,6 @@ type CfxSubscription struct {
 	SubscriptionId uint
 	Addresses      SQLStringArray
 	Topics         SQLStringArray
-}
-
-type KeeperSubscription struct {
-	gorm.Model
-	SubscriptionId uint
-	Address        string
-	UpkeepID       string
-	From           common.Address
 }
 
 type BSNIritaSubscription struct {
