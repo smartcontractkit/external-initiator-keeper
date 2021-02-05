@@ -9,22 +9,19 @@ type RegistryStore interface {
 	Registries() ([]registry, error)
 	UpdateRegistry(registry registry) error
 	Upsert(registration) error
-	UpdateRanAt(registration, uint64) error
 	BatchDelete(registryID uint32, upkeedIDs []uint64) error
 	DeleteRegistryByJobID(jobID *models.ID) error
-	Active(chainHeight uint64) ([]registration, error)
+	Eligible(blockNumber uint64) ([]registration, error)
 }
 
-func NewRegistryStore(dbClient *gorm.DB, coolDown uint64) RegistryStore {
+func NewRegistryStore(dbClient *gorm.DB) RegistryStore {
 	return registryStore{
 		dbClient: dbClient,
-		coolDown: coolDown,
 	}
 }
 
 type registryStore struct {
 	dbClient *gorm.DB
-	coolDown uint64
 }
 
 func (rm registryStore) Registries() (registries []registry, _ error) {
@@ -50,11 +47,6 @@ func (rm registryStore) Upsert(registration registration) error {
 		Error
 }
 
-func (rm registryStore) UpdateRanAt(registration registration, chainHeight uint64) error {
-	registration.LastRunBlockHeight = chainHeight
-	return rm.dbClient.Save(&registration).Error
-}
-
 func (rm registryStore) BatchDelete(registryID uint32, upkeedIDs []uint64) error {
 	return rm.dbClient.
 		Where("registry_id = ? AND upkeep_id IN (?)", registryID, upkeedIDs).
@@ -69,18 +61,20 @@ func (rm registryStore) DeleteRegistryByJobID(jobID *models.ID) error {
 		Error
 }
 
-func (rm registryStore) Active(chainHeight uint64) (result []registration, _ error) {
+func (rm registryStore) Eligible(blockNumber uint64) (result []registration, _ error) {
+	turnTakingQuery := `
+		keeper_registries.keeper_index =
+			(
+				keeper_registrations.positioning_constant + (? / keeper_registries.block_count_per_turn)
+			) % keeper_registries.num_keepers
+	`
+
 	err := rm.dbClient.
-		Where("last_run_block_height < ?", rm.runnableHeight(chainHeight)).
+		Joins("INNER JOIN keeper_registries ON keeper_registries.id = keeper_registrations.registry_id").
+		Where("? % keeper_registries.block_count_per_turn = 0", blockNumber).
+		Where(turnTakingQuery, blockNumber).
 		Find(&result).
 		Error
 
 	return result, err
-}
-
-func (rm registryStore) runnableHeight(chainHeight uint64) uint64 {
-	if chainHeight < rm.coolDown {
-		return 0
-	}
-	return chainHeight - rm.coolDown
 }

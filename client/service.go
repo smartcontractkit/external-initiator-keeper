@@ -58,7 +58,6 @@ func startService(
 			Delay:    config.ChainlinkRetryDelay,
 		},
 	}, store.RuntimeConfig{
-		KeeperBlockCooldown:        config.KeeperBlockCooldown,
 		KeeperEthEndpoint:          config.KeeperEthEndpoint,
 		KeeperRegistrySyncInterval: config.KeeperRegistrySyncInterval,
 	})
@@ -94,7 +93,7 @@ func startService(
 		}
 	}()
 
-	keeperStore := keeper.NewRegistryStore(dbClient.DB(), uint64(config.KeeperBlockCooldown))
+	keeperStore := keeper.NewRegistryStore(dbClient.DB())
 	go RunWebserver(config.ChainlinkToInitiatorAccessKey, config.ChainlinkToInitiatorSecret, srv, keeperStore, config.Port)
 
 	sig := make(chan os.Signal, 1)

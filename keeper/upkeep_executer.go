@@ -45,7 +45,7 @@ func NewUpkeepExecuter(dbClient *gorm.DB, clNode chainlink.Node, config store.Ru
 		blockHeight:    atomic.NewUint64(0),
 		chainlinkNode:  clNode,
 		endpoint:       config.KeeperEthEndpoint,
-		registryStore:  NewRegistryStore(dbClient, uint64(config.KeeperBlockCooldown)),
+		registryStore:  NewRegistryStore(dbClient),
 		executionQueue: make(chan struct{}, executionQueueSize),
 		chDone:         make(chan struct{}),
 		chSignalRun:    make(chan struct{}, 1),
@@ -108,10 +108,13 @@ func (executer upkeepExecuter) run() {
 }
 
 func (executer upkeepExecuter) processActiveRegistrations() {
-	// TODO - RYAN - this should be batched to avoid congestgion
+	// Keepers could miss their turn in the turn taking algo if they are too overloaded
+	// with work because processActiveRegistrations() blocks - this could be parallelized
+	// but will need a cap
 	logger.Debug("received new block, running checkUpkeep for keeper registrations")
 
-	activeRegistrations, err := executer.registryStore.Active(executer.blockHeight.Load())
+	// TODO - RYAN - this should be batched to avoid congestgion
+	activeRegistrations, err := executer.registryStore.Eligible(executer.blockHeight.Load())
 	if err != nil {
 		logger.Errorf("unable to load active registrations: %v", err)
 		return
@@ -203,12 +206,6 @@ func (executer upkeepExecuter) execute(registration registration) {
 	err = executer.chainlinkNode.TriggerJob(registration.Registry.JobID.String(), chainlinkPayload)
 	if err != nil {
 		logger.Errorf("Unable to trigger job on chainlink node: %v", err)
-	}
-
-	err = executer.registryStore.UpdateRanAt(registration, executer.blockHeight.Load())
-	if err != nil {
-		logger.Error(err)
-		return
 	}
 }
 

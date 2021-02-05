@@ -31,8 +31,6 @@ type Config struct {
 	ChainlinkRetryAttempts uint
 	// ChainlinkRetryDelay sets the delay between attempts for job run triggers
 	ChainlinkRetryDelay time.Duration
-	// KeeperBlockCooldown sets a number of blocks to cool down before triggering a new run for a job.
-	KeeperBlockCooldown int64
 	// The ethereum endpoint to use for keeper jobs
 	KeeperEthEndpoint string
 	// The interval at which to sync keeper registries
@@ -53,7 +51,6 @@ func newConfigFromViper(v *viper.Viper) Config {
 		ChainlinkTimeout:              v.GetDuration("cl_timeout"),
 		ChainlinkRetryAttempts:        v.GetUint("cl_retry_attempts"),
 		ChainlinkRetryDelay:           v.GetDuration("cl_retry_delay"),
-		KeeperBlockCooldown:           v.GetInt64("keeper_block_cooldown"),
 		KeeperEthEndpoint:             v.GetString("keeper_eth_endpoint"),
 		KeeperRegistrySyncInterval:    v.GetDuration("keeper_registry_sync_interval"),
 	}
