@@ -11,14 +11,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"github.com/jinzhu/gorm"
 	"github.com/pkg/errors"
 	"github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/external-initiator/blockchain"
 	"github.com/smartcontractkit/external-initiator/keeper"
-	"github.com/smartcontractkit/external-initiator/store"
 )
 
 const (
@@ -26,23 +23,14 @@ const (
 	externalInitiatorSecretHeader    = "X-Chainlink-EA-Secret"
 )
 
-type subscriptionStorer interface {
-	SaveSubscription(sub *store.Subscription) error
-	DeleteJob(jobid string) error
-	GetEndpoint(name string) (*store.Endpoint, error)
-	SaveEndpoint(endpoint *store.Endpoint) error
-	DB() *gorm.DB
-}
-
 // RunWebserver starts a new web server using the access key
 // and secret as provided on protected routes.
 func RunWebserver(
 	accessKey, secret string,
-	store subscriptionStorer,
 	regStore keeper.RegistryStore,
 	port int,
 ) {
-	srv := NewHTTPService(accessKey, secret, store, regStore)
+	srv := NewHTTPService(accessKey, secret, regStore)
 	addr := fmt.Sprintf(":%v", port)
 	err := srv.Router.Run(addr)
 	if err != nil {
@@ -56,7 +44,6 @@ type HttpService struct {
 	Router        *gin.Engine
 	AccessKey     string
 	Secret        string
-	Store         subscriptionStorer
 	RegistryStore keeper.RegistryStore
 }
 
@@ -64,13 +51,11 @@ type HttpService struct {
 // with the default router.
 func NewHTTPService(
 	accessKey, secret string,
-	store subscriptionStorer,
 	regStore keeper.RegistryStore,
 ) *HttpService {
 	srv := HttpService{
 		AccessKey:     accessKey,
 		Secret:        secret,
-		Store:         store,
 		RegistryStore: regStore,
 	}
 	srv.createRouter()
@@ -94,7 +79,6 @@ func (srv *HttpService) createRouter() {
 	{
 		auth.POST("/jobs", srv.CreateSubscription)
 		auth.DELETE("/jobs/:jobid", srv.DeleteSubscription)
-		auth.POST("/config", srv.CreateEndpoint)
 	}
 
 	srv.Router = r
@@ -120,20 +104,6 @@ type CreateSubscriptionReq struct {
 	Params blockchain.Params `json:"params"`
 }
 
-func validateRequest(t *CreateSubscriptionReq, endpointType string) error {
-	validations := append([]int{
-		len(t.JobID),
-	}, blockchain.GetValidations(endpointType, t.Params)...)
-
-	for _, v := range validations {
-		if v < 1 {
-			return errors.New("missing required field(s)")
-		}
-	}
-
-	return nil
-}
-
 type resp struct {
 	ID string `json:"id"`
 }
@@ -151,45 +121,7 @@ func (srv *HttpService) CreateSubscription(c *gin.Context) {
 
 	// HACK - making an exception to the normal workflow for keepers
 	// since they will be removed from EI at a later date
-	if req.Params.Endpoint == "keeper" {
-		srv.createKeeperSubscription(req, c)
-		return
-	}
-
-	endpoint, err := srv.Store.GetEndpoint(req.Params.Endpoint)
-	if err != nil {
-		logger.Error(err)
-		c.JSON(http.StatusInternalServerError, nil)
-		return
-	}
-	if endpoint == nil {
-		logger.Error("unknown endpoint provided")
-		c.JSON(http.StatusBadRequest, nil)
-		return
-	}
-
-	if err := validateRequest(&req, endpoint.Type); err != nil {
-		logger.Error(err)
-		c.JSON(http.StatusBadRequest, nil)
-		return
-	}
-
-	sub := &store.Subscription{
-		ReferenceId:  uuid.New().String(),
-		Job:          req.JobID,
-		EndpointName: req.Params.Endpoint,
-		Endpoint:     *endpoint,
-	}
-
-	blockchain.CreateSubscription(sub, req.Params)
-
-	if err := srv.Store.SaveSubscription(sub); err != nil {
-		logger.Error(err)
-		c.JSON(http.StatusInternalServerError, nil)
-		return
-	}
-
-	c.JSON(http.StatusCreated, resp{ID: sub.ReferenceId})
+	srv.createKeeperSubscription(req, c)
 }
 
 // DeleteSubscription deletes any job with the jobid
@@ -215,26 +147,6 @@ func (srv *HttpService) DeleteSubscription(c *gin.Context) {
 //  {"chainlink": true}
 func (srv *HttpService) ShowHealth(c *gin.Context) {
 	c.JSON(200, gin.H{"chainlink": true})
-}
-
-// CreateEndpoint saves the endpoint configuration provided
-// as payload.
-func (srv *HttpService) CreateEndpoint(c *gin.Context) {
-	var config store.Endpoint
-	err := c.BindJSON(&config)
-	if err != nil {
-		logger.Error(err)
-		c.JSON(http.StatusBadRequest, nil)
-		return
-	}
-
-	if err := srv.Store.SaveEndpoint(&config); err != nil {
-		logger.Error(err)
-		c.JSON(http.StatusInternalServerError, nil)
-		return
-	}
-
-	c.JSON(http.StatusCreated, resp{ID: config.Name})
 }
 
 // Inspired by https://github.com/gin-gonic/gin/issues/961
@@ -324,7 +236,7 @@ func (srv *HttpService) createKeeperSubscription(req CreateSubscriptionReq, c *g
 	address := common.HexToAddress(req.Params.Address)
 	from := common.HexToAddress(req.Params.From)
 	reg := keeper.NewRegistry(address, from, jobID)
-	err = srv.Store.DB().Create(&reg).Error
+	err = srv.RegistryStore.DB().Create(&reg).Error
 	if err != nil {
 		logger.Error(err)
 		c.JSON(http.StatusInternalServerError, nil)

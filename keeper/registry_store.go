@@ -13,6 +13,7 @@ type RegistryStore interface {
 	BatchDelete(registryID uint32, upkeedIDs []uint64) error
 	DeleteRegistryByJobID(jobID *models.ID) error
 	Eligible(blockNumber uint64) ([]registration, error)
+	DB() *gorm.DB
 }
 
 func NewRegistryStore(dbClient *gorm.DB) RegistryStore {
@@ -88,4 +89,8 @@ func (rm registryStore) Eligible(blockNumber uint64) (result []registration, _ e
 		Error
 
 	return result, err
+}
+
+func (rm registryStore) DB() *gorm.DB {
+	return rm.dbClient
 }

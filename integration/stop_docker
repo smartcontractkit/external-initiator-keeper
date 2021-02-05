@@ -1,9 +1,0 @@
-#!/bin/bash
-
-set -e
-
-source ./integration/common
-
-source_mock_env
-
-stop_docker

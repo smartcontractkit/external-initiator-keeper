@@ -3,7 +3,6 @@
 package client
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -121,16 +120,6 @@ func validateParams(v *viper.Viper, args []string, required []string) error {
 	}
 	if len(missing) > 0 {
 		return errors.New(strings.Join(missing, ","))
-	}
-
-	for _, a := range args {
-		var config store.Endpoint
-		err := json.Unmarshal([]byte(a), &config)
-		if err != nil {
-			msg := fmt.Sprintf("Invalid endpoint configuration provided: %v", a)
-			logger.Error(msg)
-			return errors.Wrap(err, msg)
-		}
 	}
 
 	return nil
