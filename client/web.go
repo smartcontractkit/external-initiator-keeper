@@ -39,9 +39,10 @@ type subscriptionStorer interface {
 func RunWebserver(
 	accessKey, secret string,
 	store subscriptionStorer,
+	regStore keeper.RegistryStore,
 	port int,
 ) {
-	srv := NewHTTPService(accessKey, secret, store)
+	srv := NewHTTPService(accessKey, secret, store, regStore)
 	addr := fmt.Sprintf(":%v", port)
 	err := srv.Router.Run(addr)
 	if err != nil {
@@ -52,10 +53,11 @@ func RunWebserver(
 // HttpService encapsulates router, EI service
 // and access credentials.
 type HttpService struct {
-	Router    *gin.Engine
-	AccessKey string
-	Secret    string
-	Store     subscriptionStorer
+	Router        *gin.Engine
+	AccessKey     string
+	Secret        string
+	Store         subscriptionStorer
+	RegistryStore keeper.RegistryStore
 }
 
 // NewHTTPService creates a new HttpService instance
@@ -63,11 +65,13 @@ type HttpService struct {
 func NewHTTPService(
 	accessKey, secret string,
 	store subscriptionStorer,
+	regStore keeper.RegistryStore,
 ) *HttpService {
 	srv := HttpService{
-		AccessKey: accessKey,
-		Secret:    secret,
-		Store:     store,
+		AccessKey:     accessKey,
+		Secret:        secret,
+		Store:         store,
+		RegistryStore: regStore,
 	}
 	srv.createRouter()
 	return &srv
@@ -191,14 +195,20 @@ func (srv *HttpService) CreateSubscription(c *gin.Context) {
 // DeleteSubscription deletes any job with the jobid
 // provided as parameter in the request.
 func (srv *HttpService) DeleteSubscription(c *gin.Context) {
-	jobid := c.Param("jobid")
-	if err := srv.Store.DeleteJob(jobid); err != nil {
+	// XXX: this now only works for keeper jobs
+	jobID, err := models.NewIDFromString(c.Param("jobid"))
+	if err != nil {
+		logger.Error(err)
+		c.JSON(http.StatusInternalServerError, nil)
+		return
+	}
+	if err := srv.RegistryStore.DeleteRegistryByJobID(jobID); err != nil {
 		logger.Error(err)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, resp{ID: jobid})
+	c.JSON(http.StatusOK, resp{ID: jobID.String()})
 }
 
 // ShowHealth returns the following when online:

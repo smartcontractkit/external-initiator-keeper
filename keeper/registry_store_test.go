@@ -134,6 +134,34 @@ func TestRegistryStore_BatchDelete(t *testing.T) {
 	assertRegistrationCount(t, db, 1)
 }
 
+func TestRegistryStore_DeleteRegistryByJobID(t *testing.T) {
+	db, regStore, cleanup := setupRegistryStore(t)
+	defer cleanup()
+
+	reg := newRegistry()
+	err := db.DB().Create(&reg).Error
+	require.NoError(t, err)
+
+	registrations := [3]registration{
+		newRegistration(reg, 0),
+		newRegistration(reg, 1),
+		newRegistration(reg, 2),
+	}
+
+	for _, reg := range registrations {
+		err = db.DB().Create(&reg).Error
+		require.NoError(t, err)
+	}
+
+	assertRegistrationCount(t, db, 3)
+
+	err = regStore.DeleteRegistryByJobID(reg.JobID)
+	require.NoError(t, err)
+
+	assertRegistryCount(t, db, 0)
+	assertRegistrationCount(t, db, 0)
+}
+
 func TestRegistryStore_Active(t *testing.T) {
 	db, regStore, cleanup := setupRegistryStore(t)
 	defer cleanup()
@@ -182,6 +210,12 @@ func TestRegistryStore_Active(t *testing.T) {
 	assert.Equal(t, reg.CheckGas, activeRegistrations[1].Registry.CheckGas)
 	assert.Equal(t, reg.Address, activeRegistrations[0].Registry.Address)
 	assert.Equal(t, reg.Address, activeRegistrations[1].Registry.Address)
+}
+
+func assertRegistryCount(t *testing.T, db *store.Client, expected int) {
+	var count int
+	db.DB().Model(&registry{}).Count(&count)
+	require.Equal(t, expected, count)
 }
 
 func assertRegistrationCount(t *testing.T, db *store.Client, expected int) {
