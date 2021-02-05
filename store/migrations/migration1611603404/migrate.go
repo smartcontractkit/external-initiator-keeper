@@ -16,7 +16,8 @@ func Migrate(tx *gorm.DB) error {
 			"from" bytea NOT NULL,
 			check_gas int NOT NULL,
 			block_count_per_turn int NOT NULL,
-			job_id uuid UNIQUE NOT NULL
+			job_id uuid UNIQUE NOT NULL,
+			num_keepers int NOT NULL
 		);
 
 		CREATE UNIQUE INDEX idx_keepers_unique_address ON keeper_registries(address);
@@ -26,7 +27,8 @@ func Migrate(tx *gorm.DB) error {
 			registry_id INT NOT NULL REFERENCES keeper_registries (id) ON DELETE CASCADE,
 			execute_gas int NOT NULL,
 			check_data bytea NOT NULL,
-			upkeep_id bigint NOT NULL
+			upkeep_id bigint NOT NULL,
+			positioning_constant int NOT NULL
 		);
 
 		CREATE UNIQUE INDEX idx_keeper_registries_unique_jobs_per_registry ON keeper_registries(address, job_id);

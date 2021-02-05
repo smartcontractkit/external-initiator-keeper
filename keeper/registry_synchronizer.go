@@ -89,6 +89,7 @@ func (rs registrySynchronizer) performFullSync() {
 
 func (rs registrySynchronizer) syncRegistry(registry registry) {
 	// WARN - this could get memory intensive depending on how many upkeeps there are
+	// especially because of keccak()
 
 	contract, err := keeper_registry_contract.NewKeeperRegistryContract(registry.Address, rs.ethClient)
 	if err != nil {
@@ -145,12 +146,19 @@ func (rs registrySynchronizer) syncRegistry(registry registry) {
 			logger.Error(err)
 			continue
 		}
-		newUpkeep := registration{
-			CheckData:  upkeepConfig.CheckData,
-			ExecuteGas: upkeepConfig.ExecuteGas,
-			RegistryID: uint32(registry.ID),
-			UpkeepID:   upkeepID,
+		positioningConstant, err := CalcPositioningConstant(upkeepID, registry.Address, registry.NumKeepers)
+		if err != nil {
+			logger.Error("unable to calculate positioning constant,", "err", err)
+			continue
 		}
+		newUpkeep := registration{
+			CheckData:           upkeepConfig.CheckData,
+			ExecuteGas:          upkeepConfig.ExecuteGas,
+			RegistryID:          registry.ID,
+			PositioningConstant: positioningConstant,
+			UpkeepID:            upkeepID,
+		}
+
 		// TODO - parallelize
 		// https://www.pivotaltracker.com/story/show/176747117
 		err = rs.registryStore.Upsert(newUpkeep)

@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -68,6 +69,33 @@ func TestRegistryStore_Registries(t *testing.T) {
 	existingRegistries, err := regStore.Registries()
 	require.NoError(t, err)
 	require.Equal(t, 2, len(existingRegistries))
+}
+
+func TestRegistryStore_RegistryIDs(t *testing.T) {
+	db, regStore, cleanup := setupRegistryStore(t)
+	defer cleanup()
+
+	db.DB().LogMode(true)
+
+	reg := newRegistry()
+	err := db.DB().Create(&reg).Error
+	require.NoError(t, err)
+
+	reg2 := registry{
+		Address:     common.HexToAddress("0x0000000000000000000000000000000000000456"),
+		CheckGas:    checkGas,
+		JobID:       models.NewID(),
+		From:        fromAddress,
+		ReferenceID: uuid.New().String(),
+	}
+
+	err = db.DB().Create(&reg2).Error
+	require.NoError(t, err)
+
+	ids, err := regStore.RegistryIDs()
+	require.NoError(t, err)
+	require.Equal(t, 2, len(ids))
+	fmt.Println(ids)
 }
 
 func TestRegistryStore_Upsert(t *testing.T) {
@@ -163,7 +191,7 @@ func TestRegistryStore_DeleteRegistryByJobID(t *testing.T) {
 	assertRegistrationCount(t, db, 0)
 }
 
-func TestRegistryStore_Eligibile(t *testing.T) {
+func TestRegistryStore_Eligibile_BlockCountPerTurn(t *testing.T) {
 	db, regStore, cleanup := setupRegistryStore(t)
 	defer cleanup()
 
@@ -172,18 +200,22 @@ func TestRegistryStore_Eligibile(t *testing.T) {
 	// create registries
 	reg1 := registry{
 		Address:           common.HexToAddress("0x0000000000000000000000000000000000000123"),
-		CheckGas:          checkGas,
-		JobID:             models.NewID(),
-		From:              fromAddress,
 		BlockCountPerTurn: 20,
+		CheckGas:          checkGas,
+		From:              fromAddress,
+		JobID:             models.NewID(),
+		KeeperIndex:       0,
+		NumKeepers:        1,
 		ReferenceID:       uuid.New().String(),
 	}
 	reg2 := registry{
 		Address:           common.HexToAddress("0x0000000000000000000000000000000000000321"),
-		CheckGas:          checkGas,
-		JobID:             models.NewID(),
-		From:              fromAddress,
 		BlockCountPerTurn: 30,
+		CheckGas:          checkGas,
+		From:              fromAddress,
+		JobID:             models.NewID(),
+		KeeperIndex:       0,
+		NumKeepers:        1,
 		ReferenceID:       uuid.New().String(),
 	}
 	err := db.DB().Create(&reg1).Error
@@ -229,10 +261,52 @@ func TestRegistryStore_Eligibile(t *testing.T) {
 	assert.Equal(t, reg1.Address, elligibleRegistrations[1].Registry.Address)
 }
 
-func assertRegistryCount(t *testing.T, db *store.Client, expected int) {
-	var count int
-	db.DB().Model(&registry{}).Count(&count)
-	require.Equal(t, expected, count)
+func TestRegistryStore_Eligibile_KeepersRotate(t *testing.T) {
+	db, regStore, cleanup := setupRegistryStore(t)
+	defer cleanup()
+
+	reg := registry{
+		Address:           common.HexToAddress("0x0000000000000000000000000000000000000123"),
+		BlockCountPerTurn: 20,
+		CheckGas:          checkGas,
+		From:              fromAddress,
+		JobID:             models.NewID(),
+		KeeperIndex:       0,
+		NumKeepers:        5,
+		ReferenceID:       uuid.New().String(),
+	}
+
+	err := db.DB().Create(&reg).Error
+	require.NoError(t, err)
+
+	upkeep := newRegistration(reg, 0)
+	err = regStore.Upsert(upkeep)
+	require.NoError(t, err)
+
+	assertRegistryCount(t, db, 1)
+	assertRegistrationCount(t, db, 1)
+
+	// out of 5 valid block heights, with 5 keepers, we are eligible
+	// to submit on exactly 1 of them
+	list1, err := regStore.Eligible(20) // someone eligible
+	require.NoError(t, err)
+	list2, err := regStore.Eligible(30) // noone eligible
+	require.NoError(t, err)
+	list3, err := regStore.Eligible(40) // someone eligible
+	require.NoError(t, err)
+	list4, err := regStore.Eligible(41) // noone eligible
+	require.NoError(t, err)
+	list5, err := regStore.Eligible(60) // someone eligible
+	require.NoError(t, err)
+	list6, err := regStore.Eligible(80) // someone eligible
+	require.NoError(t, err)
+	list7, err := regStore.Eligible(99) // noone eligible
+	require.NoError(t, err)
+	list8, err := regStore.Eligible(100) // someone eligible
+	require.NoError(t, err)
+
+	totalEligible := len(list1) + len(list2) + len(list3) + len(list4) + len(list5) + len(list6) + len(list7) + len(list8)
+	require.Equal(t, 1, totalEligible)
 }
 
 func assertRegistryCount(t *testing.T, db *store.Client, expected int) {
