@@ -23,6 +23,7 @@ func NewRegistrySynchronizer(dbClient *gorm.DB, config store.RuntimeConfig) Regi
 		endpoint:      config.KeeperEthEndpoint,
 		registryStore: NewRegistryStore(dbClient),
 		interval:      config.KeeperRegistrySyncInterval,
+		chDone:        make(chan struct{}),
 	}
 }
 
