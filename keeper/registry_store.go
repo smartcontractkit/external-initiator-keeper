@@ -62,9 +62,17 @@ func (rm registryStore) DeleteRegistryByJobID(jobID *models.ID) error {
 }
 
 func (rm registryStore) Eligible(blockNumber uint64) (result []registration, _ error) {
+	turnTakingQuery := `
+		keeper_registries.keeper_index =
+			(
+				keeper_registrations.positioning_constant + (? / keeper_registries.block_count_per_turn)
+			) % keeper_registries.num_keepers
+	`
+
 	err := rm.dbClient.
 		Joins("INNER JOIN keeper_registries ON keeper_registries.id = keeper_registrations.registry_id").
 		Where("? % keeper_registries.block_count_per_turn = 0", blockNumber).
+		Where(turnTakingQuery, blockNumber).
 		Find(&result).
 		Error
 

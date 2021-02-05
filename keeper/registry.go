@@ -17,6 +17,7 @@ type registry struct {
 	From              common.Address `gorm:"default:null"`
 	JobID             *models.ID     `gorm:"default:null"`
 	KeeperIndex       uint32
+	NumKeepers        uint32
 	ReferenceID       string `gorm:"default:null"`
 }
 
@@ -34,14 +35,12 @@ func (registry) TableName() string {
 }
 
 func (reg registry) SyncFromContract(contract *keeper_registry_contract.KeeperRegistryContract) (registry, error) {
-	// update registry config
 	config, err := contract.GetConfig(nil)
 	if err != nil {
 		return registry{}, err
 	}
 	reg.CheckGas = config.CheckGasLimit
 	reg.BlockCountPerTurn = uint32(config.BlockCountPerTurn.Uint64())
-
 	keeperAddresses, err := contract.GetKeeperList(nil)
 	if err != nil {
 		return registry{}, err
@@ -56,6 +55,8 @@ func (reg registry) SyncFromContract(contract *keeper_registry_contract.KeeperRe
 	if !found {
 		return registry{}, fmt.Errorf("unable to find %s in keeper list on registry %s", reg.From.Hex(), reg.Address.Hex())
 	}
+
+	reg.NumKeepers = uint32(len(keeperAddresses))
 
 	return reg, nil
 }
