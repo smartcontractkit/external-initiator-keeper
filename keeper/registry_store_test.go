@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -68,6 +69,33 @@ func TestRegistryStore_Registries(t *testing.T) {
 	existingRegistries, err := regStore.Registries()
 	require.NoError(t, err)
 	require.Equal(t, 2, len(existingRegistries))
+}
+
+func TestRegistryStore_RegistryIDs(t *testing.T) {
+	db, regStore, cleanup := setupRegistryStore(t)
+	defer cleanup()
+
+	db.DB().LogMode(true)
+
+	reg := newRegistry()
+	err := db.DB().Create(&reg).Error
+	require.NoError(t, err)
+
+	reg2 := registry{
+		Address:     common.HexToAddress("0x0000000000000000000000000000000000000456"),
+		CheckGas:    checkGas,
+		JobID:       models.NewID(),
+		From:        fromAddress,
+		ReferenceID: uuid.New().String(),
+	}
+
+	err = db.DB().Create(&reg2).Error
+	require.NoError(t, err)
+
+	ids, err := regStore.RegistryIDs()
+	require.NoError(t, err)
+	require.Equal(t, 2, len(ids))
+	fmt.Println(ids)
 }
 
 func TestRegistryStore_Upsert(t *testing.T) {

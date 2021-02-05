@@ -7,11 +7,13 @@ import (
 
 type RegistryStore interface {
 	Registries() ([]registry, error)
+	RegistryIDs() ([]uint32, error)
 	UpdateRegistry(registry registry) error
 	Upsert(registration) error
 	BatchDelete(registryID uint32, upkeedIDs []uint64) error
 	DeleteRegistryByJobID(jobID *models.ID) error
 	Eligible(blockNumber uint64) ([]registration, error)
+	DB() *gorm.DB
 }
 
 func NewRegistryStore(dbClient *gorm.DB) RegistryStore {
@@ -27,6 +29,16 @@ type registryStore struct {
 func (rm registryStore) Registries() (registries []registry, _ error) {
 	err := rm.dbClient.Find(&registries).Error
 	return registries, err
+}
+
+func (rm registryStore) RegistryIDs() ([]uint32, error) {
+	var regs []registry
+	err := rm.dbClient.Table("keeper_registries").Select("id").Find(&regs).Error
+	ids := make([]uint32, len(regs))
+	for idx, reg := range regs {
+		ids[idx] = reg.ID
+	}
+	return ids, err
 }
 
 func (rm registryStore) UpdateRegistry(registry registry) error {
@@ -77,4 +89,8 @@ func (rm registryStore) Eligible(blockNumber uint64) (result []registration, _ e
 		Error
 
 	return result, err
+}
+
+func (rm registryStore) DB() *gorm.DB {
+	return rm.dbClient
 }

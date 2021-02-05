@@ -84,16 +84,6 @@ func createTestDB(t *testing.T, parsed *url.URL) string {
 	return path
 }
 
-func seedTestDB(config Config) error {
-	db, err := ConnectToDb(config.DatabaseURL)
-	if err != nil {
-		return err
-	}
-	defer eitest.MustClose(db)
-
-	return db.db.Create(&Endpoint{Name: "test", Type: "ethereum", Url: "ws://localhost:8546/"}).Error
-}
-
 func createPostgresChildDB(t *testing.T, config *Config, originalURL string) func() {
 	parsed, err := url.Parse(originalURL)
 	if err != nil {
@@ -102,10 +92,6 @@ func createPostgresChildDB(t *testing.T, config *Config, originalURL string) fun
 
 	testdb := createTestDB(t, parsed)
 	config.DatabaseURL = testdb
-
-	if err = seedTestDB(*config); err != nil {
-		t.Fatal(err)
-	}
 
 	return func() {
 		config.DatabaseURL = testdb
