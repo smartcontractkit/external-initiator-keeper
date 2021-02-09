@@ -91,6 +91,7 @@ func (rs registrySynchronizer) performFullSync() {
 func (rs registrySynchronizer) syncRegistry(registry registry) {
 	// WARN - this could get memory intensive depending on how many upkeeps there are
 	// especially because of keccak()
+	logger.Debugf("syncing registry %s", registry.Address.Hex())
 
 	contract, err := keeper_registry_contract.NewKeeperRegistryContract(registry.Address, rs.ethClient)
 	if err != nil {

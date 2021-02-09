@@ -27,6 +27,7 @@ const (
 	checkUpkeep        = "checkUpkeep"
 	performUpkeep      = "performUpkeep"
 	executionQueueSize = 10
+	gasBuffer          = uint32(200_000)
 )
 
 var (
@@ -154,6 +155,8 @@ func (executer upkeepExecuter) execute(registration registration) {
 		Data: checkPayload,
 	}
 
+	logger.Debugf("Checking upkeep on registry: %s, upkeepID %d", registration.Registry.Address.Hex(), registration.UpkeepID)
+
 	result, err := executer.ethClient.CallContract(context.Background(), msg, nil)
 	if err != nil {
 		// don't log anything as this is extremely common and would be too noisey
@@ -173,8 +176,6 @@ func (executer upkeepExecuter) execute(registration registration) {
 		return
 	}
 
-	logger.Debugf("Performing upkeep on registry %s, ID %d", registration.Registry.Address.Hex(), registration.UpkeepID)
-
 	performPayload, err := upkeepRegistryABI.Pack(
 		performUpkeep,
 		big.NewInt(int64(registration.UpkeepID)),
@@ -193,7 +194,7 @@ func (executer upkeepExecuter) execute(registration registration) {
 		"functionSelector": performUpkeepHex,
 		"result":           performPayloadString,
 		"fromAddresses":    []string{registration.Registry.From.Hex()},
-		"gasLimit":         registration.ExecuteGas,
+		"gasLimit":         registration.ExecuteGas + gasBuffer,
 	}
 
 	chainlinkPayload, err := json.Marshal(chainlinkPayloadJSON)
