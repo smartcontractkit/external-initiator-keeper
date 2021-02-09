@@ -1,16 +1,13 @@
 package keeper
 
 import (
-	"fmt"
 	"math/big"
-	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/jinzhu/gorm"
 	"github.com/smartcontractkit/chainlink/core/logger"
+	"github.com/smartcontractkit/chainlink/core/services/eth"
 	"github.com/smartcontractkit/external-initiator/keeper/keeper_registry_contract"
-	"github.com/smartcontractkit/external-initiator/store"
 )
 
 type RegistrySynchronizer interface {
@@ -18,18 +15,18 @@ type RegistrySynchronizer interface {
 	Stop()
 }
 
-func NewRegistrySynchronizer(dbClient *gorm.DB, config store.RuntimeConfig) RegistrySynchronizer {
+func NewRegistrySynchronizer(dbClient *gorm.DB, ethClient eth.Client, syncInterval time.Duration) RegistrySynchronizer {
 	return registrySynchronizer{
-		endpoint:      config.KeeperEthEndpoint,
+		ethClient:     ethClient,
 		registryStore: NewRegistryStore(dbClient),
-		interval:      config.KeeperRegistrySyncInterval,
+		interval:      syncInterval,
 		chDone:        make(chan struct{}),
 	}
 }
 
 type registrySynchronizer struct {
 	endpoint      string
-	ethClient     *ethclient.Client
+	ethClient     eth.Client
 	interval      time.Duration
 	registryStore RegistryStore
 
@@ -38,15 +35,8 @@ type registrySynchronizer struct {
 
 func (rs registrySynchronizer) Start() error {
 	logger.Debug("starting registry synchronizer")
-	ethClient, err := ethclient.Dial(rs.endpoint)
-	if err != nil {
-		return err
-	}
-	rs.ethClient = ethClient
 
-	if !strings.HasPrefix(rs.endpoint, "ws") && !strings.HasPrefix(rs.endpoint, "http") {
-		return fmt.Errorf("unknown endpoint protocol: %+v", rs.endpoint)
-	}
+	// TODO - RYAN - only startable once
 
 	go rs.run()
 

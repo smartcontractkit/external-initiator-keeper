@@ -8,6 +8,7 @@ import (
 
 	"github.com/jinzhu/gorm"
 	"github.com/smartcontractkit/chainlink/core/logger"
+	"github.com/smartcontractkit/chainlink/core/services/eth"
 	"github.com/smartcontractkit/external-initiator/chainlink"
 	"github.com/smartcontractkit/external-initiator/keeper"
 	"github.com/smartcontractkit/external-initiator/store"
@@ -31,7 +32,7 @@ func startService(
 		logger.Fatal(err)
 	}
 
-	srv := NewService(dbClient, chainlink.Node{
+	srv, err := NewService(dbClient, chainlink.Node{
 		AccessKey:    config.InitiatorToChainlinkAccessKey,
 		AccessSecret: config.InitiatorToChainlinkSecret,
 		Endpoint:     *clUrl,
@@ -44,6 +45,9 @@ func startService(
 		KeeperEthEndpoint:          config.KeeperEthEndpoint,
 		KeeperRegistrySyncInterval: config.KeeperRegistrySyncInterval,
 	})
+	if err != nil {
+		logger.Fatal(err)
+	}
 
 	go func() {
 		err := srv.Run()
@@ -79,13 +83,17 @@ func NewService(
 	dbClient storeInterface,
 	clNode chainlink.Node,
 	runtimeConfig store.RuntimeConfig,
-) *Service {
+) (*Service, error) {
 	upkeepExecuter := keeper.NewNoOpUpkeepExecuter()
 	registrySynchronizer := keeper.NewNoOpRegistrySynchronizer()
 	if runtimeConfig.KeeperEthEndpoint != "" {
 		logger.Info("Enabling Keeper Service")
 		upkeepExecuter = keeper.NewUpkeepExecuter(dbClient.DB(), clNode, runtimeConfig)
-		registrySynchronizer = keeper.NewRegistrySynchronizer(dbClient.DB(), runtimeConfig)
+		ethClient, err := eth.NewClient(runtimeConfig.KeeperEthEndpoint)
+		if err != nil {
+			return nil, err
+		}
+		registrySynchronizer = keeper.NewRegistrySynchronizer(dbClient.DB(), ethClient, runtimeConfig.KeeperRegistrySyncInterval)
 	}
 
 	return &Service{
@@ -94,7 +102,7 @@ func NewService(
 		runtimeConfig:        runtimeConfig,
 		upkeepExecuter:       upkeepExecuter,
 		registrySynchronizer: registrySynchronizer,
-	}
+	}, nil
 }
 
 // Run loads subscriptions, validates and subscribes to them.
