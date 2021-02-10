@@ -19,6 +19,7 @@ require (
 	github.com/jinzhu/gorm v1.9.16
 	github.com/magiconair/properties v1.8.1
 	github.com/mattn/go-sqlite3 v2.0.1+incompatible // indirect
+	github.com/onsi/gomega v1.10.3
 	github.com/ontio/ontology-go-sdk v1.11.1
 	github.com/pborman/uuid v1.2.0
 	github.com/pierrec/xxHash v0.1.5 // indirect
