@@ -83,6 +83,7 @@ var requiredConfig = []string{
 	"cl_timeout",
 	"cl_retry_attempts",
 	"cl_retry_delay",
+	"keeper_eth_endpoint",
 }
 
 // runner type matches the function signature of synchronizeForever

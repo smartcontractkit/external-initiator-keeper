@@ -84,17 +84,12 @@ func NewService(
 	clNode chainlink.Node,
 	runtimeConfig store.RuntimeConfig,
 ) (*Service, error) {
-	upkeepExecuter := keeper.NewNoOpUpkeepExecuter()
-	registrySynchronizer := keeper.NewNoOpRegistrySynchronizer()
-	if runtimeConfig.KeeperEthEndpoint != "" {
-		logger.Info("Enabling Keeper Service")
-		upkeepExecuter = keeper.NewUpkeepExecuter(dbClient.DB(), clNode, runtimeConfig)
-		ethClient, err := eth.NewClient(runtimeConfig.KeeperEthEndpoint)
-		if err != nil {
-			return nil, err
-		}
-		registrySynchronizer = keeper.NewRegistrySynchronizer(dbClient.DB(), ethClient, runtimeConfig.KeeperRegistrySyncInterval)
+	ethClient, err := eth.NewClient(runtimeConfig.KeeperEthEndpoint)
+	if err != nil {
+		return nil, err
 	}
+	upkeepExecuter := keeper.NewUpkeepExecuter(dbClient.DB(), clNode, ethClient)
+	registrySynchronizer := keeper.NewRegistrySynchronizer(dbClient.DB(), ethClient, runtimeConfig.KeeperRegistrySyncInterval)
 
 	return &Service{
 		store:                dbClient,
