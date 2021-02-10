@@ -8,7 +8,6 @@ import (
 
 	"github.com/jinzhu/gorm"
 	"github.com/smartcontractkit/chainlink/core/logger"
-	"github.com/smartcontractkit/external-initiator/blockchain"
 	"github.com/smartcontractkit/external-initiator/chainlink"
 	"github.com/smartcontractkit/external-initiator/keeper"
 	"github.com/smartcontractkit/external-initiator/store"
@@ -24,12 +23,8 @@ type storeInterface interface {
 func startService(
 	config Config,
 	dbClient *store.Client,
-	args []string,
 ) {
 	logger.Info("Starting External Initiator")
-
-	// Set the mocking status before we start anything else
-	blockchain.ExpectsMock = config.ExpectsMock
 
 	clUrl, err := url.Parse(normalizeLocalhost(config.ChainlinkURL))
 	if err != nil {

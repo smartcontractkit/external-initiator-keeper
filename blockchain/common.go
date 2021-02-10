@@ -11,9 +11,6 @@ var (
 	ErrSubscriberType = errors.New("unknown subscriber type")
 )
 
-// ExpectsMock variable is set when we run in a mock context
-var ExpectsMock = false
-
 type Params struct {
 	Address string `json:"address"`
 	From    string `json:"from"`

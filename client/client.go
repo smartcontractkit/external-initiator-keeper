@@ -26,8 +26,8 @@ func generateCmd() *cobra.Command {
 	newcmd := &cobra.Command{
 		Use:  "external-initiator [endpoint configs]",
 		Args: cobra.MinimumNArgs(0),
-		Long: "Monitors external blockchains and relays events to Chainlink node. Supplying endpoint configs as args will delete all other stored configs. ENV variables can be set by prefixing flag with EI_: EI_ACCESSKEY",
-		Run:  func(_ *cobra.Command, args []string) { runCallback(v, args, startService) },
+		Long: "Monitors external blockchains and relays events to Chainlink node. ENV variables can be set by prefixing flag with EI_: EI_ACCESSKEY",
+		Run:  func(_ *cobra.Command, _ []string) { runCallback(v, startService) },
 	}
 
 	newcmd.Flags().Int("port", 8080, "The port for the EI API to listen on")
@@ -50,9 +50,6 @@ func generateCmd() *cobra.Command {
 
 	newcmd.Flags().String("ci_secret", "", "The External Initiator secret, used for traffic flowing from Chainlink to this Service")
 	must(v.BindPFlag("ci_secret", newcmd.Flags().Lookup("ci_secret")))
-
-	newcmd.Flags().Bool("mock", false, "Set to true if the External Initiator should expect mock events from the blockchains")
-	must(v.BindPFlag("mock", newcmd.Flags().Lookup("mock")))
 
 	newcmd.Flags().Duration("cl_timeout", 5*time.Second, "The timeout for job run triggers to the Chainlink node")
 	must(v.BindPFlag("cl_timeout", newcmd.Flags().Lookup("cl_timeout")))
@@ -89,10 +86,10 @@ var requiredConfig = []string{
 }
 
 // runner type matches the function signature of synchronizeForever
-type runner = func(Config, *store.Client, []string)
+type runner = func(Config, *store.Client)
 
-func runCallback(v *viper.Viper, args []string, runner runner) {
-	err := validateParams(v, args, requiredConfig)
+func runCallback(v *viper.Viper, runner runner) {
+	err := validateParams(v, requiredConfig)
 	if err != nil {
 		logger.Error(err)
 	}
@@ -106,10 +103,10 @@ func runCallback(v *viper.Viper, args []string, runner runner) {
 	}
 	defer logger.ErrorIfCalling(db.Close)
 
-	runner(config, db, args)
+	runner(config, db)
 }
 
-func validateParams(v *viper.Viper, args []string, required []string) error {
+func validateParams(v *viper.Viper, required []string) error {
 	var missing []string
 	for _, k := range required {
 		if v.GetString(k) == "" {

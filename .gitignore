@@ -1,4 +1,4 @@
 db/
 .env
 .envrc
-external-initiator
+keeper-external-initiator
