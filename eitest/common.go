@@ -1,9 +1,11 @@
 package eitest
 
 import (
+	"crypto/rand"
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/jinzhu/gorm"
 	"github.com/onsi/gomega"
 	"github.com/stretchr/testify/assert"
@@ -36,4 +38,18 @@ func WaitForCount(t *testing.T, db *gorm.DB, model interface{}, expected uint) {
 		assert.NoError(t, err)
 		return count
 	}, DBWaitTimeout, DBPollingInterval).Should(gomega.Equal(expected))
+}
+
+func NewHash() common.Hash {
+	return common.BytesToHash(randomBytes(32))
+}
+
+func NewAddress() common.Address {
+	return common.BytesToAddress(randomBytes(20))
+}
+
+func randomBytes(n int) []byte {
+	b := make([]byte, n)
+	rand.Read(b)
+	return b
 }

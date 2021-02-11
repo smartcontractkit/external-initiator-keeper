@@ -4,22 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math/big"
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/jinzhu/gorm"
 	"github.com/smartcontractkit/chainlink/core/logger"
+	"github.com/smartcontractkit/chainlink/core/services/eth"
+	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/chainlink/core/utils"
 	"github.com/smartcontractkit/external-initiator/chainlink"
-	"github.com/smartcontractkit/external-initiator/keeper/keeper_registry_contract"
-	"github.com/smartcontractkit/external-initiator/store"
 	"go.uber.org/atomic"
 )
 
@@ -28,12 +23,11 @@ const (
 	performUpkeep      = "performUpkeep"
 	executionQueueSize = 10
 	gasBuffer          = uint32(200_000)
+	refreshInterval    = 5 * time.Second
 )
 
 var (
-	upkeepRegistryABI = mustGetABI(keeper_registry_contract.KeeperRegistryContractABI)
-	performUpkeepHex  = utils.AddHexPrefix(common.Bytes2Hex(upkeepRegistryABI.Methods[performUpkeep].ID))
-	refreshInterval   = 5 * time.Second
+	performUpkeepHex = utils.AddHexPrefix(common.Bytes2Hex(upkeepRegistryABI.Methods[performUpkeep].ID))
 )
 
 type UpkeepExecuter interface {
@@ -41,12 +35,13 @@ type UpkeepExecuter interface {
 	Stop()
 }
 
-func NewUpkeepExecuter(dbClient *gorm.DB, clNode chainlink.Node, config store.RuntimeConfig) UpkeepExecuter {
+func NewUpkeepExecuter(dbClient *gorm.DB, clNode chainlink.Client, ethClient eth.Client) UpkeepExecuter {
 	return upkeepExecuter{
 		blockHeight:    atomic.NewUint64(0),
 		chainlinkNode:  clNode,
-		endpoint:       config.KeeperEthEndpoint,
+		ethClient:      ethClient,
 		registryStore:  NewRegistryStore(dbClient),
+		isRunning:      atomic.NewBool(false),
 		executionQueue: make(chan struct{}, executionQueueSize),
 		chDone:         make(chan struct{}),
 		chSignalRun:    make(chan struct{}, 1),
@@ -55,41 +50,25 @@ func NewUpkeepExecuter(dbClient *gorm.DB, clNode chainlink.Node, config store.Ru
 
 type upkeepExecuter struct {
 	blockHeight   *atomic.Uint64
-	chainlinkNode chainlink.Node
-	endpoint      string
-	ethClient     *ethclient.Client
+	chainlinkNode chainlink.Client
+	ethClient     eth.Client
 	registryStore RegistryStore
-	isRunning     atomic.Bool
+	isRunning     *atomic.Bool
 
 	executionQueue chan struct{}
 	chDone         chan struct{}
 	chSignalRun    chan struct{}
 }
 
-var _ UpkeepExecuter = upkeepExecuter{} // upkeepExecuter satisfies UpkeepExecuter
-
 func (executer upkeepExecuter) Start() error {
 	if executer.isRunning.Load() {
 		return errors.New("already started")
 	}
 	executer.isRunning.Store(true)
-
-	ethClient, err := ethclient.Dial(executer.endpoint)
-	if err != nil {
-		return err
+	if executer.isRunning.Load() {
 	}
-	executer.ethClient = ethClient
-
-	if strings.HasPrefix(executer.endpoint, "ws") {
-		go executer.setRunsOnHeadSubscription()
-	} else if strings.HasPrefix(executer.endpoint, "http") {
-		go executer.setRunsOnTimer()
-	} else {
-		return fmt.Errorf("unknown endpoint protocol: %+v", executer.endpoint)
-	}
-
+	go executer.setRunsOnHeadSubscription()
 	go executer.run()
-
 	return nil
 }
 
@@ -210,9 +189,7 @@ func (executer upkeepExecuter) execute(registration registration) {
 }
 
 func (executer upkeepExecuter) setRunsOnHeadSubscription() {
-	logger.Debug("setting UpkeepExecuter to run on new heads")
-
-	headers := make(chan *types.Header)
+	headers := make(chan *models.Head)
 	sub, err := executer.ethClient.SubscribeNewHead(context.Background(), headers)
 	defer sub.Unsubscribe()
 	if err != nil {
@@ -224,33 +201,10 @@ func (executer upkeepExecuter) setRunsOnHeadSubscription() {
 		case <-executer.chDone:
 			return
 		case err := <-sub.Err():
-			logger.Errorf("error in keeper header subscription: %v", err)
+			logger.Errorf("error in keeper head subscription: %v", err)
 		case head := <-headers:
-			executer.blockHeight.Store(uint64(head.Number.Int64()))
+			executer.blockHeight.Store(uint64(head.Number))
 			executer.signalRun()
-		}
-	}
-}
-
-func (executer upkeepExecuter) setRunsOnTimer() {
-	logger.Debug("setting UpkeepExecuter to run on timer")
-	ticker := time.NewTicker(refreshInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-executer.chDone:
-			return
-		case <-ticker.C:
-			height, err := executer.ethClient.BlockNumber(context.TODO())
-			if err != nil {
-				logger.Errorf("unable to determine latest block height: %v", err)
-				continue
-			}
-			if executer.blockHeight.Load() < height {
-				executer.blockHeight.Store(height)
-				executer.signalRun()
-			}
 		}
 	}
 }
@@ -262,23 +216,3 @@ func (executer upkeepExecuter) signalRun() {
 	default:
 	}
 }
-
-func mustGetABI(json string) abi.ABI {
-	abi, err := abi.JSON(strings.NewReader(json))
-	if err != nil {
-		panic("could not parse ABI: " + err.Error())
-	}
-	return abi
-}
-
-func NewNoOpUpkeepExecuter() UpkeepExecuter {
-	return noOpUpkeepExecuter{}
-}
-
-type noOpUpkeepExecuter struct{}
-
-func (noOpUpkeepExecuter) Start() error {
-	return nil
-}
-
-func (noOpUpkeepExecuter) Stop() {}

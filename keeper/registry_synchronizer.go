@@ -159,15 +159,3 @@ func (rs registrySynchronizer) syncRegistry(registry registry) {
 		}
 	}
 }
-
-func NewNoOpRegistrySynchronizer() RegistrySynchronizer {
-	return noOpRegistrySynchronizer{}
-}
-
-type noOpRegistrySynchronizer struct{}
-
-func (noOpRegistrySynchronizer) Start() error {
-	return nil
-}
-
-func (noOpRegistrySynchronizer) Stop() {}

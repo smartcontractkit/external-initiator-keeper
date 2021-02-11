@@ -30,10 +30,12 @@ func setupRegistryStore(t *testing.T) (*store.Client, RegistryStore, func()) {
 func newRegistry() registry {
 	return registry{
 		Address:           registryAddress,
-		CheckGas:          checkGas,
-		JobID:             jobID,
-		From:              fromAddress,
 		BlockCountPerTurn: blockCountPerTurn,
+		CheckGas:          checkGas,
+		From:              fromAddress,
+		JobID:             jobID,
+		KeeperIndex:       0,
+		NumKeepers:        1,
 		ReferenceID:       uuid.New().String(),
 	}
 }
