@@ -49,9 +49,9 @@ var upkeep = struct {
 	MaxValidBlocknumber: 1_000_000_000,
 }
 
-func setupRegistrySync(t *testing.T) (*gorm.DB, RegistrySynchronizer, *mocks.Client, func()) {
+func setupRegistrySync(t *testing.T) (*gorm.DB, RegistrySynchronizer, *mocks.EthClient, func()) {
 	db, cleanup := store.SetupTestDB(t)
-	ethMock := new(mocks.Client)
+	ethMock := new(mocks.EthClient)
 	synchronizer := NewRegistrySynchronizer(db.DB(), ethMock, syncTime)
 	return db.DB(), synchronizer, ethMock, cleanup
 }

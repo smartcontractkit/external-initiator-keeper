@@ -15,6 +15,8 @@ import (
 	"github.com/smartcontractkit/chainlink/core/logger"
 )
 
+//go:generate mockery --name Client --structname ChainlinkClient --output ../internal/mocks/ --case underscore --filename chainlink_client.go
+
 const (
 	externalInitiatorAccessKeyHeader = "X-Chainlink-EA-AccessKey"
 	externalInitiatorSecretHeader    = "X-Chainlink-EA-Secret"

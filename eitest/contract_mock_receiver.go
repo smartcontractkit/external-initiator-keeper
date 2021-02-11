@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func NewContractMockReceiver(t *testing.T, ethMock *mocks.Client, abi abi.ABI, address common.Address) contractMockReceiver {
+func NewContractMockReceiver(t *testing.T, ethMock *mocks.EthClient, abi abi.ABI, address common.Address) contractMockReceiver {
 	return contractMockReceiver{
 		t:       t,
 		ethMock: ethMock,
@@ -25,7 +25,7 @@ func NewContractMockReceiver(t *testing.T, ethMock *mocks.Client, abi abi.ABI, a
 
 type contractMockReceiver struct {
 	t       *testing.T
-	ethMock *mocks.Client
+	ethMock *mocks.EthClient
 	abi     abi.ABI
 	address common.Address
 }
