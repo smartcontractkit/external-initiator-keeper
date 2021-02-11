@@ -35,7 +35,18 @@ docker build -t keeper-external-initiator:latest .
 ```
 
 ## Usage
+(1) Create db
 
+(2) Set the environment variables as described above
+
+(3) Run
+```bash
+./keeper-external-initiator # local binary with env vars already set
+# or
+docker run --env-file ./path/to/env/vars keeper-external-initiator # docker
+```
+
+## Help Options
 ```
 $ ./keeper-external-initiator --help
 Monitors external blockchains and relays events to Chainlink node. ENV variables can be set by prefixing flag with EI_: EI_ACCESSKEY
