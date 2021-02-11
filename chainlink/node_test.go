@@ -175,11 +175,11 @@ func TestNode_TriggerJob(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cl := Node{
-				AccessKey:    tt.fields.AccessKey,
-				AccessSecret: tt.fields.AccessSecret,
-				Endpoint:     tt.fields.Endpoint,
-				Retry: RetryConfig{
+			cl := client{
+				accessKey:    tt.fields.AccessKey,
+				accessSecret: tt.fields.AccessSecret,
+				endpoint:     tt.fields.Endpoint,
+				retry: RetryConfig{
 					Timeout:  2 * time.Second,
 					Attempts: 3,
 					Delay:    100 * time.Millisecond,

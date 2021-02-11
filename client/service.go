@@ -32,19 +32,25 @@ func startService(
 		logger.Fatal(err)
 	}
 
-	srv, err := NewService(dbClient, chainlink.Node{
-		AccessKey:    config.InitiatorToChainlinkAccessKey,
-		AccessSecret: config.InitiatorToChainlinkSecret,
-		Endpoint:     *clUrl,
-		Retry: chainlink.RetryConfig{
-			Timeout:  config.ChainlinkTimeout,
-			Attempts: config.ChainlinkRetryAttempts,
-			Delay:    config.ChainlinkRetryDelay,
-		},
-	}, store.RuntimeConfig{
+	retryConfig := chainlink.RetryConfig{
+		Timeout:  config.ChainlinkTimeout,
+		Attempts: config.ChainlinkRetryAttempts,
+		Delay:    config.ChainlinkRetryDelay,
+	}
+
+	runtimeConfig := store.RuntimeConfig{
 		KeeperEthEndpoint:          config.KeeperEthEndpoint,
 		KeeperRegistrySyncInterval: config.KeeperRegistrySyncInterval,
-	})
+	}
+
+	chainlinkClient := chainlink.NewClient(
+		config.InitiatorToChainlinkAccessKey,
+		config.InitiatorToChainlinkSecret,
+		*clUrl,
+		retryConfig,
+	)
+
+	srv, err := NewService(dbClient, chainlinkClient, runtimeConfig)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -70,7 +76,7 @@ func startService(
 // Service holds the main process for running
 // the external initiator.
 type Service struct {
-	clNode               chainlink.Node
+	clNode               chainlink.Client
 	store                storeInterface
 	runtimeConfig        store.RuntimeConfig
 	upkeepExecuter       keeper.UpkeepExecuter
@@ -81,7 +87,7 @@ type Service struct {
 // the provided database client and Chainlink node config.
 func NewService(
 	dbClient storeInterface,
-	clNode chainlink.Node,
+	clNode chainlink.Client,
 	runtimeConfig store.RuntimeConfig,
 ) (*Service, error) {
 	ethClient, err := eth.NewClient(runtimeConfig.KeeperEthEndpoint)

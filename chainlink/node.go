@@ -26,21 +26,39 @@ type RetryConfig struct {
 	Delay    time.Duration
 }
 
+type Client interface {
+	TriggerJob(jobId string, data []byte) error
+}
+
+func NewClient(
+	accessKey string,
+	accessSecret string,
+	endpoint url.URL,
+	retry RetryConfig,
+) Client {
+	return client{
+		accessKey:    accessKey,
+		accessSecret: accessSecret,
+		endpoint:     endpoint,
+		retry:        retry,
+	}
+}
+
 // Node encapsulates all the configuration
 // necessary to interact with a Chainlink node.
-type Node struct {
-	AccessKey    string
-	AccessSecret string
-	Endpoint     url.URL
-	Retry        RetryConfig
+type client struct {
+	accessKey    string
+	accessSecret string
+	endpoint     url.URL
+	retry        RetryConfig
 }
 
 // TriggerJob wil send a job run trigger for the
 // provided jobId.
-func (cl Node) TriggerJob(jobId string, data []byte) error {
-	logger.Infof("Sending a job run trigger to %s for job %s\n", cl.Endpoint.String(), jobId)
+func (cl client) TriggerJob(jobId string, data []byte) error {
+	logger.Infof("Sending a job run trigger to %s for job %s\n", cl.endpoint.String(), jobId)
 
-	u := cl.Endpoint
+	u := cl.endpoint
 	u.Path = fmt.Sprintf("/v2/specs/%s/runs", jobId)
 
 	request, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(data))
@@ -49,10 +67,10 @@ func (cl Node) TriggerJob(jobId string, data []byte) error {
 	}
 
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Add(externalInitiatorAccessKeyHeader, cl.AccessKey)
-	request.Header.Add(externalInitiatorSecretHeader, cl.AccessSecret)
+	request.Header.Add(externalInitiatorAccessKeyHeader, cl.accessKey)
+	request.Header.Add(externalInitiatorSecretHeader, cl.accessSecret)
 
-	_, statusCode, err := cl.Retry.withRetry(&http.Client{}, request)
+	_, statusCode, err := cl.retry.withRetry(&http.Client{}, request)
 	if err != nil {
 		return err
 	}
