@@ -67,12 +67,6 @@ func TestRequireAuth(t *testing.T) {
 			"/jobs/test",
 			true,
 		},
-		{
-			"Creating config is protected",
-			"POST",
-			"/config",
-			true,
-		},
 	}
 
 	srv := &HttpService{
