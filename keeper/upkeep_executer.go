@@ -138,8 +138,7 @@ func (executer upkeepExecuter) execute(registration registration) {
 
 	result, err := executer.ethClient.CallContract(context.Background(), msg, nil)
 	if err != nil {
-		// don't log anything as this is extremely common and would be too noisey
-		// error just signifies "inelligible to performUpkeep"
+		logger.Debugf("checkUpkeep failed on registry: %s, upkeepID %d", registration.Registry.Address.Hex(), registration.UpkeepID)
 		return
 	}
 
@@ -182,6 +181,7 @@ func (executer upkeepExecuter) execute(registration registration) {
 		return
 	}
 
+	logger.Debugf("Performing upkeep on registry: %s, upkeepID %d", registration.Registry.Address.Hex(), registration.UpkeepID)
 	err = executer.chainlinkNode.TriggerJob(registration.Registry.JobID.String(), chainlinkPayload)
 	if err != nil {
 		logger.Errorf("Unable to trigger job on chainlink node: %v", err)
