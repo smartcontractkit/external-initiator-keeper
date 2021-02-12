@@ -40,7 +40,6 @@ func startService(
 	}
 
 	runtimeConfig := store.RuntimeConfig{
-		KeeperEthEndpoint:          config.KeeperEthEndpoint,
 		KeeperRegistrySyncInterval: config.KeeperRegistrySyncInterval,
 	}
 
@@ -51,10 +50,16 @@ func startService(
 		retryConfig,
 	)
 
-	srv, err := NewService(dbClient, chainlinkClient, runtimeConfig)
+	ethClient, err := eth.NewClient(config.KeeperEthEndpoint)
 	if err != nil {
 		logger.Fatal(err)
 	}
+	err = ethClient.Dial(context.Background())
+	if err != nil {
+		logger.Fatal(err)
+	}
+
+	srv := NewService(dbClient, chainlinkClient, ethClient, runtimeConfig)
 
 	go func() {
 		err := srv.Run()
@@ -89,16 +94,9 @@ type Service struct {
 func NewService(
 	dbClient storeInterface,
 	clNode chainlink.Client,
+	ethClient eth.Client,
 	runtimeConfig store.RuntimeConfig,
-) (*Service, error) {
-	ethClient, err := eth.NewClient(runtimeConfig.KeeperEthEndpoint)
-	if err != nil {
-		return nil, err
-	}
-	err = ethClient.Dial(context.Background())
-	if err != nil {
-		return nil, err
-	}
+) *Service {
 	upkeepExecuter := keeper.NewUpkeepExecuter(dbClient.DB(), clNode, ethClient)
 	registrySynchronizer := keeper.NewRegistrySynchronizer(dbClient.DB(), ethClient, runtimeConfig.KeeperRegistrySyncInterval)
 
@@ -108,7 +106,7 @@ func NewService(
 		runtimeConfig:        runtimeConfig,
 		upkeepExecuter:       upkeepExecuter,
 		registrySynchronizer: registrySynchronizer,
-	}, nil
+	}
 }
 
 // Run loads subscriptions, validates and subscribes to them.
