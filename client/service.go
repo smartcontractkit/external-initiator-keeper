@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"net/url"
 	"os"
 	"os/signal"
@@ -91,6 +92,10 @@ func NewService(
 	runtimeConfig store.RuntimeConfig,
 ) (*Service, error) {
 	ethClient, err := eth.NewClient(runtimeConfig.KeeperEthEndpoint)
+	if err != nil {
+		return nil, err
+	}
+	err = ethClient.Dial(context.Background())
 	if err != nil {
 		return nil, err
 	}
