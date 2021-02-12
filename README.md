@@ -1,6 +1,8 @@
-# External Initiator
+# Keeper External Initiator
 
-Initiate Chainlink job runs from external sources.
+Chainlink Keeper network aims to provide options for smart contracts to outsource regular maintenance tasks(harvesting, liquidating etc) in a trust minimized manner. The network aims to provide a protocol for payment & governance for an off chain secure computation ecosystem.
+
+Following are the details of how to run the keeper node as External Initiator.
 
 ## Installation
 
