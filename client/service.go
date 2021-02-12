@@ -39,10 +39,6 @@ func startService(
 		Delay:    config.ChainlinkRetryDelay,
 	}
 
-	runtimeConfig := store.RuntimeConfig{
-		KeeperRegistrySyncInterval: config.KeeperRegistrySyncInterval,
-	}
-
 	chainlinkClient := chainlink.NewClient(
 		config.InitiatorToChainlinkAccessKey,
 		config.InitiatorToChainlinkSecret,
@@ -59,7 +55,7 @@ func startService(
 		logger.Fatal(err)
 	}
 
-	srv := NewService(dbClient, chainlinkClient, ethClient, runtimeConfig)
+	srv := NewService(dbClient, chainlinkClient, ethClient, config)
 
 	go func() {
 		err := srv.Run()
@@ -67,9 +63,6 @@ func startService(
 			logger.Fatal(err)
 		}
 	}()
-
-	keeperStore := keeper.NewRegistryStore(dbClient.DB())
-	go RunWebserver(config.ChainlinkToInitiatorAccessKey, config.ChainlinkToInitiatorSecret, keeperStore, config.Port)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
@@ -83,8 +76,8 @@ func startService(
 // the external initiator.
 type Service struct {
 	clNode               chainlink.Client
-	store                storeInterface
-	runtimeConfig        store.RuntimeConfig
+	registryStore        keeper.RegistryStore
+	config               Config
 	upkeepExecuter       keeper.UpkeepExecuter
 	registrySynchronizer keeper.RegistrySynchronizer
 }
@@ -95,15 +88,16 @@ func NewService(
 	dbClient storeInterface,
 	clNode chainlink.Client,
 	ethClient eth.Client,
-	runtimeConfig store.RuntimeConfig,
+	config Config,
 ) *Service {
-	upkeepExecuter := keeper.NewUpkeepExecuter(dbClient.DB(), clNode, ethClient)
-	registrySynchronizer := keeper.NewRegistrySynchronizer(dbClient.DB(), ethClient, runtimeConfig.KeeperRegistrySyncInterval)
+	registryStore := keeper.NewRegistryStore(dbClient.DB())
+	upkeepExecuter := keeper.NewUpkeepExecuter(registryStore, clNode, ethClient)
+	registrySynchronizer := keeper.NewRegistrySynchronizer(registryStore, ethClient, config.KeeperRegistrySyncInterval)
 
 	return &Service{
-		store:                dbClient,
+		registryStore:        registryStore,
 		clNode:               clNode,
-		runtimeConfig:        runtimeConfig,
+		config:               config,
 		upkeepExecuter:       upkeepExecuter,
 		registrySynchronizer: registrySynchronizer,
 	}
@@ -122,6 +116,8 @@ func (srv *Service) Run() error {
 		return err
 	}
 
+	go RunWebserver(srv.config.ChainlinkToInitiatorAccessKey, srv.config.ChainlinkToInitiatorSecret, srv.registryStore, srv.config.Port)
+
 	return nil
 }
 
@@ -131,7 +127,7 @@ func (srv *Service) Close() {
 	srv.upkeepExecuter.Stop()
 	srv.registrySynchronizer.Stop()
 
-	err := srv.store.Close()
+	err := srv.registryStore.Close()
 	if err != nil {
 		logger.Error(err)
 	}

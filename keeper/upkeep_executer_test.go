@@ -26,7 +26,8 @@ func setupExecuter(t *testing.T) (
 	db, cleanup := store.SetupTestDB(t)
 	clMock := new(mocks.ChainlinkClient)
 	ethMock := new(mocks.EthClient)
-	executer := NewUpkeepExecuter(db.DB(), clMock, ethMock)
+	regStore := NewRegistryStore(db.DB())
+	executer := NewUpkeepExecuter(regStore, clMock, ethMock)
 	return db.DB(), executer, clMock, ethMock, cleanup
 }
 

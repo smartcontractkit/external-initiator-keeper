@@ -52,7 +52,8 @@ var upkeep = struct {
 func setupRegistrySync(t *testing.T) (*gorm.DB, RegistrySynchronizer, *mocks.EthClient, func()) {
 	db, cleanup := store.SetupTestDB(t)
 	ethMock := new(mocks.EthClient)
-	synchronizer := NewRegistrySynchronizer(db.DB(), ethMock, syncTime)
+	regStore := NewRegistryStore(db.DB())
+	synchronizer := NewRegistrySynchronizer(regStore, ethMock, syncTime)
 	return db.DB(), synchronizer, ethMock, cleanup
 }
 

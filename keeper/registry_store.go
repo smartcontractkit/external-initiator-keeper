@@ -14,6 +14,7 @@ type RegistryStore interface {
 	DeleteRegistryByJobID(jobID *models.ID) error
 	Eligible(blockNumber uint64) ([]registration, error)
 	DB() *gorm.DB
+	Close() error
 }
 
 func NewRegistryStore(dbClient *gorm.DB) RegistryStore {
@@ -93,4 +94,8 @@ func (rm registryStore) Eligible(blockNumber uint64) (result []registration, _ e
 
 func (rm registryStore) DB() *gorm.DB {
 	return rm.dbClient
+}
+
+func (rm registryStore) Close() error {
+	return rm.dbClient.Close()
 }

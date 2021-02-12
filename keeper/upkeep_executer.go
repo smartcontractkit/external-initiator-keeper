@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/jinzhu/gorm"
 	"github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/services/eth"
 	"github.com/smartcontractkit/chainlink/core/store/models"
@@ -35,12 +34,12 @@ type UpkeepExecuter interface {
 	Stop()
 }
 
-func NewUpkeepExecuter(dbClient *gorm.DB, clNode chainlink.Client, ethClient eth.Client) UpkeepExecuter {
+func NewUpkeepExecuter(registryStore RegistryStore, clNode chainlink.Client, ethClient eth.Client) UpkeepExecuter {
 	return upkeepExecuter{
 		blockHeight:    atomic.NewUint64(0),
 		chainlinkNode:  clNode,
 		ethClient:      ethClient,
-		registryStore:  NewRegistryStore(dbClient),
+		registryStore:  registryStore,
 		isRunning:      atomic.NewBool(false),
 		executionQueue: make(chan struct{}, executionQueueSize),
 		chDone:         make(chan struct{}),
