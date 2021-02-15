@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	externalInitiatorAccessKeyHeader = "X-Chainlink-EA-AccessKey"
-	externalInitiatorSecretHeader    = "X-Chainlink-EA-Secret"
+	ExternalInitiatorAccessKeyHeader = "X-Chainlink-EA-AccessKey"
+	ExternalInitiatorSecretHeader    = "X-Chainlink-EA-Secret"
 )
 
 // RunWebserver starts a new web server using the access key
@@ -86,8 +86,8 @@ func (srv *HttpService) createRouter() {
 
 func authenticate(accessKey, secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		reqAccessKey := c.GetHeader(externalInitiatorAccessKeyHeader)
-		reqSecret := c.GetHeader(externalInitiatorSecretHeader)
+		reqAccessKey := c.GetHeader(ExternalInitiatorAccessKeyHeader)
+		reqSecret := c.GetHeader(ExternalInitiatorSecretHeader)
 		if reqAccessKey == accessKey && reqSecret == secret {
 			c.Next()
 		} else {
@@ -100,7 +100,6 @@ func authenticate(accessKey, secret string) gin.HandlerFunc {
 // from the Chainlink node.
 type CreateSubscriptionReq struct {
 	JobID  string            `json:"jobId"`
-	Type   string            `json:"type"`
 	Params blockchain.Params `json:"params"`
 }
 

@@ -83,8 +83,8 @@ func TestRequireAuth(t *testing.T) {
 		if test.Auth {
 			assert.Equal(t, http.StatusUnauthorized, w.Code)
 
-			req.Header.Set(externalInitiatorAccessKeyHeader, key)
-			req.Header.Set(externalInitiatorSecretHeader, secret)
+			req.Header.Set(ExternalInitiatorAccessKeyHeader, key)
+			req.Header.Set(ExternalInitiatorSecretHeader, secret)
 
 			w = httptest.NewRecorder()
 			srv.ServeHTTP(w, req)
