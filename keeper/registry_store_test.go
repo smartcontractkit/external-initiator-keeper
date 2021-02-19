@@ -310,6 +310,34 @@ func TestRegistryStore_Eligibile_KeepersRotate(t *testing.T) {
 	require.Equal(t, 1, totalEligible)
 }
 
+func TestRegistryStore_UpkeepCount(t *testing.T) {
+	db, regStore, cleanup := setupRegistryStore(t)
+	defer cleanup()
+
+	reg := newRegistry()
+	err := db.DB().Create(&reg).Error
+	require.NoError(t, err)
+
+	count, err := regStore.UpkeepCount(reg)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), count)
+
+	registrations := [3]registration{
+		newRegistration(reg, 0),
+		newRegistration(reg, 1),
+		newRegistration(reg, 2),
+	}
+
+	for _, reg := range registrations {
+		err = db.DB().Create(&reg).Error
+		require.NoError(t, err)
+	}
+
+	count, err = regStore.UpkeepCount(reg)
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), count)
+}
+
 func assertRegistryCount(t *testing.T, db *store.Client, expected int) {
 	var count int
 	db.DB().Model(&registry{}).Count(&count)
