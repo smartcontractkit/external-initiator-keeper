@@ -26,7 +26,7 @@ const (
 )
 
 var (
-	performUpkeepHex = utils.AddHexPrefix(common.Bytes2Hex(upkeepRegistryABI.Methods[performUpkeep].ID))
+	performUpkeepHex = utils.AddHexPrefix(common.Bytes2Hex(UpkeepRegistryABI.Methods[performUpkeep].ID))
 )
 
 type UpkeepExecuter interface {
@@ -116,7 +116,7 @@ func (executer upkeepExecuter) execute(registration registration) {
 		<-executer.executionQueue
 	}()
 
-	checkPayload, err := upkeepRegistryABI.Pack(
+	checkPayload, err := UpkeepRegistryABI.Pack(
 		checkUpkeep,
 		big.NewInt(int64(registration.UpkeepID)),
 		registration.Registry.From,
@@ -141,7 +141,7 @@ func (executer upkeepExecuter) execute(registration registration) {
 		return
 	}
 
-	res, err := upkeepRegistryABI.Unpack(checkUpkeep, result)
+	res, err := UpkeepRegistryABI.Unpack(checkUpkeep, result)
 	if err != nil {
 		logger.Error(err)
 		return
@@ -153,7 +153,7 @@ func (executer upkeepExecuter) execute(registration registration) {
 		return
 	}
 
-	performPayload, err := upkeepRegistryABI.Pack(
+	performPayload, err := UpkeepRegistryABI.Pack(
 		performUpkeep,
 		big.NewInt(int64(registration.UpkeepID)),
 		performData,

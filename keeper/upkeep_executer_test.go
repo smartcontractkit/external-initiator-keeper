@@ -97,7 +97,7 @@ func Test_UpkeepExecuter_PerformsUpkeep_Happy(t *testing.T) {
 	err = db.Create(&upkeep).Error
 	require.NoError(t, err)
 
-	registryMock := eitest.NewContractMockReceiver(t, ethMock, upkeepRegistryABI, reg.Address)
+	registryMock := eitest.NewContractMockReceiver(t, ethMock, UpkeepRegistryABI, reg.Address)
 	registryMock.MockResponse("checkUpkeep", checkUpkeepResponse)
 
 	clMock.

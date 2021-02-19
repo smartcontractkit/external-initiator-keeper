@@ -65,7 +65,7 @@ func Test_RegistrySynchronizer_AddsAndRemovesUpkeeps(t *testing.T) {
 	err := db.Create(&reg).Error
 	require.NoError(t, err)
 
-	registryMock := eitest.NewContractMockReceiver(t, ethMock, upkeepRegistryABI, reg.Address)
+	registryMock := eitest.NewContractMockReceiver(t, ethMock, UpkeepRegistryABI, reg.Address)
 	cancelledUpkeeps := []*big.Int{big.NewInt(0)}
 	registryMock.MockResponse("getConfig", regConfig).Once()
 	registryMock.MockResponse("getKeeperList", []common.Address{reg.From}).Once()
