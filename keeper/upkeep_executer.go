@@ -34,12 +34,12 @@ type UpkeepExecuter interface {
 	Stop()
 }
 
-func NewUpkeepExecuter(registryStore RegistryStore, clNode chainlink.Client, ethClient eth.Client) UpkeepExecuter {
+func NewUpkeepExecuter(keeperStore Store, clNode chainlink.Client, ethClient eth.Client) UpkeepExecuter {
 	return upkeepExecuter{
 		blockHeight:    atomic.NewUint64(0),
 		chainlinkNode:  clNode,
 		ethClient:      ethClient,
-		registryStore:  registryStore,
+		keeperStore:    keeperStore,
 		isRunning:      atomic.NewBool(false),
 		executionQueue: make(chan struct{}, executionQueueSize),
 		chDone:         make(chan struct{}),
@@ -51,7 +51,7 @@ type upkeepExecuter struct {
 	blockHeight   *atomic.Uint64
 	chainlinkNode chainlink.Client
 	ethClient     eth.Client
-	registryStore RegistryStore
+	keeperStore   Store
 	isRunning     *atomic.Bool
 
 	executionQueue chan struct{}
@@ -91,7 +91,7 @@ func (executer upkeepExecuter) processActiveRegistrations() {
 	logger.Debug("received new block, running checkUpkeep for keeper registrations")
 
 	// TODO - RYAN - this should be batched to avoid congestgion
-	activeRegistrations, err := executer.registryStore.Eligible(executer.blockHeight.Load())
+	activeRegistrations, err := executer.keeperStore.EligibleUpkeeps(executer.blockHeight.Load())
 	if err != nil {
 		logger.Errorf("unable to load active registrations: %v", err)
 		return

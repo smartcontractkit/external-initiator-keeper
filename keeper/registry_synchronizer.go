@@ -16,24 +16,24 @@ type RegistrySynchronizer interface {
 	Stop()
 }
 
-func NewRegistrySynchronizer(registryStore RegistryStore, ethClient eth.Client, syncInterval time.Duration) RegistrySynchronizer {
+func NewRegistrySynchronizer(keeperStore Store, ethClient eth.Client, syncInterval time.Duration) RegistrySynchronizer {
 	return registrySynchronizer{
-		ethClient:     ethClient,
-		registryStore: registryStore,
-		interval:      syncInterval,
-		isRunning:     atomic.NewBool(false),
-		isSyncing:     atomic.NewBool(false),
-		chDone:        make(chan struct{}),
+		ethClient:   ethClient,
+		keeperStore: keeperStore,
+		interval:    syncInterval,
+		isRunning:   atomic.NewBool(false),
+		isSyncing:   atomic.NewBool(false),
+		chDone:      make(chan struct{}),
 	}
 }
 
 type registrySynchronizer struct {
-	endpoint      string
-	ethClient     eth.Client
-	interval      time.Duration
-	isRunning     *atomic.Bool
-	isSyncing     *atomic.Bool
-	registryStore RegistryStore
+	endpoint    string
+	ethClient   eth.Client
+	interval    time.Duration
+	isRunning   *atomic.Bool
+	isSyncing   *atomic.Bool
+	keeperStore Store
 
 	chDone chan struct{}
 }
@@ -77,7 +77,7 @@ func (rs registrySynchronizer) performFullSync() {
 
 	// DEV: assumign that number of registries is relatively low
 	// otherwise, this needs to be batched
-	registries, err := rs.registryStore.Registries()
+	registries, err := rs.keeperStore.Registries()
 	if err != nil {
 		logger.Error(err)
 	}
@@ -106,14 +106,14 @@ func (rs registrySynchronizer) syncRegistry(registry registry) {
 		return
 	}
 
-	err = rs.registryStore.UpdateRegistry(registry)
+	err = rs.keeperStore.UpsertRegistry(registry)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
 
 	// add new upkeeps, update existing upkeeps
-	nextUpkeepID, err := rs.registryStore.NextUpkeepID(registry)
+	nextUpkeepID, err := rs.keeperStore.NextUpkeepIDForRegistry(registry)
 	if err != nil {
 		logger.Error(err)
 		return
@@ -147,7 +147,7 @@ func (rs registrySynchronizer) syncRegistry(registry registry) {
 
 		// TODO - parallelize
 		// https://www.pivotaltracker.com/story/show/176747117
-		err = rs.registryStore.Upsert(newUpkeep)
+		err = rs.keeperStore.UpsertUpkeep(newUpkeep)
 		if err != nil {
 			logger.Error(err)
 		}
@@ -163,7 +163,7 @@ func (rs registrySynchronizer) syncRegistry(registry registry) {
 	for idx, upkeepID := range cancelledBigs {
 		cancelled[idx] = upkeepID.Uint64()
 	}
-	err = rs.registryStore.BatchDelete(registry.ID, cancelled)
+	err = rs.keeperStore.BatchDeleteUpkeeps(registry.ID, cancelled)
 	if err != nil {
 		logger.Error(err)
 		return

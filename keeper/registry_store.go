@@ -5,49 +5,38 @@ import (
 	"github.com/smartcontractkit/chainlink/core/store/models"
 )
 
-type RegistryStore interface {
+type Store interface {
 	Registries() ([]registry, error)
-	RegistryIDs() ([]uint32, error)
-	UpdateRegistry(registry registry) error
-	Upsert(registration) error
-	BatchDelete(registryID uint32, upkeedIDs []uint64) error
+	UpsertRegistry(registry registry) error
+	UpsertUpkeep(registration) error
+	BatchDeleteUpkeeps(registryID uint32, upkeedIDs []uint64) error
 	DeleteRegistryByJobID(jobID *models.ID) error
-	Eligible(blockNumber uint64) ([]registration, error)
-	NextUpkeepID(registry registry) (uint64, error)
+	EligibleUpkeeps(blockNumber uint64) ([]registration, error)
+	NextUpkeepIDForRegistry(registry registry) (uint64, error)
 	DB() *gorm.DB
 	Close() error
 }
 
-func NewRegistryStore(dbClient *gorm.DB) RegistryStore {
-	return registryStore{
+func NewStore(dbClient *gorm.DB) Store {
+	return keeperStore{
 		dbClient: dbClient,
 	}
 }
 
-type registryStore struct {
+type keeperStore struct {
 	dbClient *gorm.DB
 }
 
-func (rm registryStore) Registries() (registries []registry, _ error) {
+func (rm keeperStore) Registries() (registries []registry, _ error) {
 	err := rm.dbClient.Find(&registries).Error
 	return registries, err
 }
 
-func (rm registryStore) RegistryIDs() ([]uint32, error) {
-	var regs []registry
-	err := rm.dbClient.Table("keeper_registries").Select("id").Find(&regs).Error
-	ids := make([]uint32, len(regs))
-	for idx, reg := range regs {
-		ids[idx] = reg.ID
-	}
-	return ids, err
-}
-
-func (rm registryStore) UpdateRegistry(registry registry) error {
+func (rm keeperStore) UpsertRegistry(registry registry) error {
 	return rm.dbClient.Save(&registry).Error
 }
 
-func (rm registryStore) Upsert(registration registration) error {
+func (rm keeperStore) UpsertUpkeep(registration registration) error {
 	return rm.dbClient.
 		Set(
 			"gorm:insert_option",
@@ -61,21 +50,21 @@ func (rm registryStore) Upsert(registration registration) error {
 		Error
 }
 
-func (rm registryStore) BatchDelete(registryID uint32, upkeedIDs []uint64) error {
+func (rm keeperStore) BatchDeleteUpkeeps(registryID uint32, upkeedIDs []uint64) error {
 	return rm.dbClient.
 		Where("registry_id = ? AND upkeep_id IN (?)", registryID, upkeedIDs).
 		Delete(registration{}).
 		Error
 }
 
-func (rm registryStore) DeleteRegistryByJobID(jobID *models.ID) error {
+func (rm keeperStore) DeleteRegistryByJobID(jobID *models.ID) error {
 	return rm.dbClient.
 		Where("job_id = ?", jobID).
 		Delete(registry{}).
 		Error
 }
 
-func (rm registryStore) Eligible(blockNumber uint64) (result []registration, _ error) {
+func (rm keeperStore) EligibleUpkeeps(blockNumber uint64) (result []registration, _ error) {
 	turnTakingQuery := `
 		keeper_registries.keeper_index =
 			(
@@ -93,9 +82,9 @@ func (rm registryStore) Eligible(blockNumber uint64) (result []registration, _ e
 	return result, err
 }
 
-// NextUpkeepID returns the largest upkeepID + 1, indicating the expected next upkeepID
+// NextUpkeepIDForRegistry returns the largest upkeepID + 1, indicating the expected next upkeepID
 // to sync from the contract
-func (rm registryStore) NextUpkeepID(reg registry) (nextID uint64, err error) {
+func (rm keeperStore) NextUpkeepIDForRegistry(reg registry) (nextID uint64, err error) {
 	err = rm.dbClient.
 		Model(&registration{}).
 		Where("registry_id = ?", reg.ID).
@@ -105,10 +94,10 @@ func (rm registryStore) NextUpkeepID(reg registry) (nextID uint64, err error) {
 	return nextID, err
 }
 
-func (rm registryStore) DB() *gorm.DB {
+func (rm keeperStore) DB() *gorm.DB {
 	return rm.dbClient
 }
 
-func (rm registryStore) Close() error {
+func (rm keeperStore) Close() error {
 	return rm.dbClient.Close()
 }

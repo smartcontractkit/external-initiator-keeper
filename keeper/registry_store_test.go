@@ -1,7 +1,6 @@
 package keeper
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -22,9 +21,9 @@ var executeGas = uint32(10_000)
 var checkGas = uint32(2_000_000)
 var blockCountPerTurn = uint32(20)
 
-func setupRegistryStore(t *testing.T) (*gorm.DB, RegistryStore, func()) {
+func setupRegistryStore(t *testing.T) (*gorm.DB, Store, func()) {
 	dbClient, cleanup := store.SetupTestDB(t)
-	regStore := NewRegistryStore(dbClient.DB())
+	regStore := NewStore(dbClient.DB())
 	return dbClient.DB(), regStore, cleanup
 }
 
@@ -74,33 +73,6 @@ func TestRegistryStore_Registries(t *testing.T) {
 	require.Equal(t, 2, len(existingRegistries))
 }
 
-func TestRegistryStore_RegistryIDs(t *testing.T) {
-	db, regStore, cleanup := setupRegistryStore(t)
-	defer cleanup()
-
-	db.LogMode(true)
-
-	reg := newRegistry()
-	err := db.Create(&reg).Error
-	require.NoError(t, err)
-
-	reg2 := registry{
-		Address:     common.HexToAddress("0x0000000000000000000000000000000000000456"),
-		CheckGas:    checkGas,
-		JobID:       models.NewID(),
-		From:        fromAddress,
-		ReferenceID: models.NewID().String(),
-	}
-
-	err = db.Create(&reg2).Error
-	require.NoError(t, err)
-
-	ids, err := regStore.RegistryIDs()
-	require.NoError(t, err)
-	require.Equal(t, 2, len(ids))
-	fmt.Println(ids)
-}
-
 func TestRegistryStore_Upsert(t *testing.T) {
 	db, regStore, cleanup := setupRegistryStore(t)
 	defer cleanup()
@@ -112,7 +84,7 @@ func TestRegistryStore_Upsert(t *testing.T) {
 
 	// create registration
 	newRegistration := newRegistration(reg, 0)
-	err = regStore.Upsert(newRegistration)
+	err = regStore.UpsertUpkeep(newRegistration)
 	require.NoError(t, err)
 
 	eitest.AssertCount(t, db, &registration{}, 1)
@@ -129,7 +101,7 @@ func TestRegistryStore_Upsert(t *testing.T) {
 		ExecuteGas: 20_000,
 		CheckData:  common.Hex2Bytes("8888"),
 	}
-	err = regStore.Upsert(updatedRegistration)
+	err = regStore.UpsertUpkeep(updatedRegistration)
 	require.NoError(t, err)
 	eitest.AssertCount(t, db, &registration{}, 1)
 	err = db.First(&existingRegistration).Error
@@ -159,7 +131,7 @@ func TestRegistryStore_BatchDelete(t *testing.T) {
 
 	eitest.AssertCount(t, db, &registration{}, 3)
 
-	err = regStore.BatchDelete(reg.ID, []uint64{0, 2})
+	err = regStore.BatchDeleteUpkeeps(reg.ID, []uint64{0, 2})
 	require.NoError(t, err)
 
 	eitest.AssertCount(t, db, &registration{}, 1)
@@ -242,13 +214,13 @@ func TestRegistryStore_Eligibile_BlockCountPerTurn(t *testing.T) {
 	}
 
 	for _, reg := range registrations {
-		err = regStore.Upsert(reg)
+		err = regStore.UpsertUpkeep(reg)
 		require.NoError(t, err)
 	}
 
 	eitest.AssertCount(t, db, &registration{}, 3)
 
-	elligibleRegistrations, err := regStore.Eligible(blockheight)
+	elligibleRegistrations, err := regStore.EligibleUpkeeps(blockheight)
 	assert.NoError(t, err)
 	assert.Len(t, elligibleRegistrations, 2)
 	assert.Equal(t, uint64(0), elligibleRegistrations[0].UpkeepID)
@@ -282,7 +254,7 @@ func TestRegistryStore_Eligibile_KeepersRotate(t *testing.T) {
 	require.NoError(t, err)
 
 	upkeep := newRegistration(reg, 0)
-	err = regStore.Upsert(upkeep)
+	err = regStore.UpsertUpkeep(upkeep)
 	require.NoError(t, err)
 
 	eitest.AssertCount(t, db, registry{}, 1)
@@ -290,21 +262,21 @@ func TestRegistryStore_Eligibile_KeepersRotate(t *testing.T) {
 
 	// out of 5 valid block heights, with 5 keepers, we are eligible
 	// to submit on exactly 1 of them
-	list1, err := regStore.Eligible(20) // someone eligible
+	list1, err := regStore.EligibleUpkeeps(20) // someone eligible
 	require.NoError(t, err)
-	list2, err := regStore.Eligible(30) // noone eligible
+	list2, err := regStore.EligibleUpkeeps(30) // noone eligible
 	require.NoError(t, err)
-	list3, err := regStore.Eligible(40) // someone eligible
+	list3, err := regStore.EligibleUpkeeps(40) // someone eligible
 	require.NoError(t, err)
-	list4, err := regStore.Eligible(41) // noone eligible
+	list4, err := regStore.EligibleUpkeeps(41) // noone eligible
 	require.NoError(t, err)
-	list5, err := regStore.Eligible(60) // someone eligible
+	list5, err := regStore.EligibleUpkeeps(60) // someone eligible
 	require.NoError(t, err)
-	list6, err := regStore.Eligible(80) // someone eligible
+	list6, err := regStore.EligibleUpkeeps(80) // someone eligible
 	require.NoError(t, err)
-	list7, err := regStore.Eligible(99) // noone eligible
+	list7, err := regStore.EligibleUpkeeps(99) // noone eligible
 	require.NoError(t, err)
-	list8, err := regStore.Eligible(100) // someone eligible
+	list8, err := regStore.EligibleUpkeeps(100) // someone eligible
 	require.NoError(t, err)
 
 	totalEligible := len(list1) + len(list2) + len(list3) + len(list4) + len(list5) + len(list6) + len(list7) + len(list8)
@@ -319,23 +291,23 @@ func TestRegistryStore_NextUpkeepID(t *testing.T) {
 	err := db.Create(&reg).Error
 	require.NoError(t, err)
 
-	nextID, err := regStore.NextUpkeepID(reg)
+	nextID, err := regStore.NextUpkeepIDForRegistry(reg)
 	require.NoError(t, err)
 	require.Equal(t, uint64(0), nextID)
 
 	upkeep := newRegistration(reg, 0)
-	err = regStore.Upsert(upkeep)
+	err = regStore.UpsertUpkeep(upkeep)
 	require.NoError(t, err)
 
-	nextID, err = regStore.NextUpkeepID(reg)
+	nextID, err = regStore.NextUpkeepIDForRegistry(reg)
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), nextID)
 
 	upkeep = newRegistration(reg, 3)
-	err = regStore.Upsert(upkeep)
+	err = regStore.UpsertUpkeep(upkeep)
 	require.NoError(t, err)
 
-	nextID, err = regStore.NextUpkeepID(reg)
+	nextID, err = regStore.NextUpkeepIDForRegistry(reg)
 	require.NoError(t, err)
 	require.Equal(t, uint64(4), nextID)
 }

@@ -53,14 +53,14 @@ var upkeep = struct {
 func setupRegistrySync(t *testing.T) (*gorm.DB, registrySynchronizer, *mocks.EthClient, func()) {
 	db, cleanup := store.SetupTestDB(t)
 	ethMock := new(mocks.EthClient)
-	regStore := NewRegistryStore(db.DB())
+	regStore := NewStore(db.DB())
 	synchronizer := registrySynchronizer{
-		ethClient:     ethMock,
-		registryStore: regStore,
-		interval:      syncInterval,
-		isRunning:     atomic.NewBool(false),
-		isSyncing:     atomic.NewBool(false),
-		chDone:        make(chan struct{}),
+		ethClient:   ethMock,
+		keeperStore: regStore,
+		interval:    syncInterval,
+		isRunning:   atomic.NewBool(false),
+		isSyncing:   atomic.NewBool(false),
+		chDone:      make(chan struct{}),
 	}
 	return db.DB(), synchronizer, ethMock, cleanup
 }

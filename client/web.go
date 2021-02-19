@@ -27,7 +27,7 @@ const (
 // and secret as provided on protected routes.
 func RunWebserver(
 	accessKey, secret string,
-	regStore keeper.RegistryStore,
+	regStore keeper.Store,
 	port int,
 ) {
 	srv := NewHTTPService(accessKey, secret, regStore)
@@ -41,22 +41,22 @@ func RunWebserver(
 // HttpService encapsulates router, EI service
 // and access credentials.
 type HttpService struct {
-	Router        *gin.Engine
-	AccessKey     string
-	Secret        string
-	RegistryStore keeper.RegistryStore
+	Router    *gin.Engine
+	AccessKey string
+	Secret    string
+	Store     keeper.Store
 }
 
 // NewHTTPService creates a new HttpService instance
 // with the default router.
 func NewHTTPService(
 	accessKey, secret string,
-	regStore keeper.RegistryStore,
+	regStore keeper.Store,
 ) *HttpService {
 	srv := HttpService{
-		AccessKey:     accessKey,
-		Secret:        secret,
-		RegistryStore: regStore,
+		AccessKey: accessKey,
+		Secret:    secret,
+		Store:     regStore,
 	}
 	srv.createRouter()
 	return &srv
@@ -133,7 +133,7 @@ func (srv *HttpService) DeleteSubscription(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, nil)
 		return
 	}
-	if err := srv.RegistryStore.DeleteRegistryByJobID(jobID); err != nil {
+	if err := srv.Store.DeleteRegistryByJobID(jobID); err != nil {
 		logger.Error(err)
 		c.JSON(http.StatusInternalServerError, nil)
 		return
@@ -235,7 +235,7 @@ func (srv *HttpService) createKeeperSubscription(req CreateSubscriptionReq, c *g
 	address := common.HexToAddress(req.Params.Address)
 	from := common.HexToAddress(req.Params.From)
 	reg := keeper.NewRegistry(address, from, jobID)
-	err = srv.RegistryStore.DB().Create(&reg).Error
+	err = srv.Store.DB().Create(&reg).Error
 	if err != nil {
 		logger.Error(err)
 		c.JSON(http.StatusInternalServerError, nil)
