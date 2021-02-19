@@ -235,7 +235,7 @@ func (srv *HttpService) createKeeperSubscription(req CreateSubscriptionReq, c *g
 	address := common.HexToAddress(req.Params.Address)
 	from := common.HexToAddress(req.Params.From)
 	reg := keeper.NewRegistry(address, from, jobID)
-	err = srv.Store.DB().Create(&reg).Error
+	err = srv.Store.UpsertRegistry(reg)
 	if err != nil {
 		logger.Error(err)
 		c.JSON(http.StatusInternalServerError, nil)

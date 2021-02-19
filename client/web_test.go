@@ -1,7 +1,9 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,12 +11,107 @@ import (
 	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/external-initiator/blockchain"
 	"github.com/smartcontractkit/external-initiator/eitest"
+	"github.com/smartcontractkit/external-initiator/keeper"
+	"github.com/smartcontractkit/external-initiator/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	key    = "testKey"
+	secret = "testSecretAbcdæøå"
+)
+
+func TestCreateController(t *testing.T) {
+	dbClient, cleanup := store.SetupTestDB(t)
+	regStore := keeper.NewStore(dbClient.DB())
+	defer cleanup()
+
+	srv := &HttpService{
+		AccessKey: key,
+		Secret:    secret,
+		Store:     regStore,
+	}
+	srv.createRouter()
+
+	jobID := models.NewID().String()
+	requestData := CreateSubscriptionReq{
+		JobID: jobID,
+		Params: blockchain.Params{
+			Address: eitest.NewAddress().Hex(),
+			From:    eitest.NewAddress().Hex(),
+		},
+	}
+
+	requestBytes, err := json.Marshal(requestData)
+	require.NoError(t, err)
+
+	request := httptest.NewRequest("POST", "http://localhost:8080/jobs", bytes.NewReader(requestBytes))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Add(ExternalInitiatorAccessKeyHeader, key)
+	request.Header.Add(ExternalInitiatorSecretHeader, secret)
+
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, request)
+	require.Equal(t, 201, w.Code)
+
+	var respJSON map[string]interface{}
+	err = json.Unmarshal(w.Body.Bytes(), &respJSON)
+	require.NoError(t, err)
+}
+
 func TestDeleteController(t *testing.T) {
-	// TODO
+	dbClient, cleanup := store.SetupTestDB(t)
+	regStore := keeper.NewStore(dbClient.DB())
+	defer cleanup()
+
+	jobID := models.NewID()
+	reg := keeper.NewRegistry(
+		eitest.NewAddress(),
+		eitest.NewAddress(),
+		jobID,
+	)
+	err := regStore.UpsertRegistry(reg)
+	require.NoError(t, err)
+
+	srv := &HttpService{
+		AccessKey: key,
+		Secret:    secret,
+		Store:     regStore,
+	}
+	srv.createRouter()
+
+	t.Run("deletes existing jobs", func(t *testing.T) {
+		path := fmt.Sprintf("http://localhost:8080/jobs/%s", jobID.String())
+		request := httptest.NewRequest("DELETE", path, nil)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Add(ExternalInitiatorAccessKeyHeader, key)
+		request.Header.Add(ExternalInitiatorSecretHeader, secret)
+
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, request)
+		require.Equal(t, 200, w.Code)
+
+		var respJSON map[string]interface{}
+		err = json.Unmarshal(w.Body.Bytes(), &respJSON)
+		require.NoError(t, err)
+	})
+
+	t.Run("errors for non-existing jobs", func(t *testing.T) {
+		path := "http://localhost:8080/jobs/DNE"
+		request := httptest.NewRequest("DELETE", path, nil)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Add(ExternalInitiatorAccessKeyHeader, key)
+		request.Header.Add(ExternalInitiatorSecretHeader, secret)
+
+		w := httptest.NewRecorder()
+		srv.ServeHTTP(w, request)
+		require.Equal(t, 500, w.Code)
+
+		var respJSON map[string]interface{}
+		err = json.Unmarshal(w.Body.Bytes(), &respJSON)
+		require.NoError(t, err)
+	})
 }
 
 func TestHealthController(t *testing.T) {
@@ -44,9 +141,6 @@ func TestHealthController(t *testing.T) {
 }
 
 func TestRequireAuth(t *testing.T) {
-	key := "testKey"
-	secret := "testSecretAbcdæøå"
-
 	tests := []struct {
 		Name   string
 		Method string
