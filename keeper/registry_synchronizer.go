@@ -22,6 +22,7 @@ func NewRegistrySynchronizer(registryStore RegistryStore, ethClient eth.Client, 
 		registryStore: registryStore,
 		interval:      syncInterval,
 		isRunning:     atomic.NewBool(false),
+		isSyncing:     atomic.NewBool(false),
 		chDone:        make(chan struct{}),
 	}
 }
@@ -31,6 +32,7 @@ type registrySynchronizer struct {
 	ethClient     eth.Client
 	interval      time.Duration
 	isRunning     *atomic.Bool
+	isSyncing     *atomic.Bool
 	registryStore RegistryStore
 
 	chDone chan struct{}
@@ -66,6 +68,13 @@ func (rs registrySynchronizer) run() {
 }
 
 func (rs registrySynchronizer) performFullSync() {
+	// skip syncing if previous sync is unfinished
+	if rs.isSyncing.Load() {
+		return
+	}
+	rs.isSyncing.Store(true)
+	defer func() { rs.isSyncing.Store(false) }()
+
 	logger.Debug("performing full sync of keeper registries")
 
 	registries, err := rs.registryStore.Registries()
