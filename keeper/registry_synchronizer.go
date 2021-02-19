@@ -1,12 +1,14 @@
 package keeper
 
 import (
+	"errors"
 	"math/big"
 	"time"
 
 	"github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/services/eth"
 	"github.com/smartcontractkit/external-initiator/keeper/keeper_registry_contract"
+	"go.uber.org/atomic"
 )
 
 type RegistrySynchronizer interface {
@@ -19,6 +21,7 @@ func NewRegistrySynchronizer(registryStore RegistryStore, ethClient eth.Client, 
 		ethClient:     ethClient,
 		registryStore: registryStore,
 		interval:      syncInterval,
+		isRunning:     atomic.NewBool(false),
 		chDone:        make(chan struct{}),
 	}
 }
@@ -27,18 +30,18 @@ type registrySynchronizer struct {
 	endpoint      string
 	ethClient     eth.Client
 	interval      time.Duration
+	isRunning     *atomic.Bool
 	registryStore RegistryStore
 
 	chDone chan struct{}
 }
 
 func (rs registrySynchronizer) Start() error {
-	logger.Debug("starting registry synchronizer")
-
-	// TODO - RYAN - only startable once
-
+	if rs.isRunning.Load() {
+		return errors.New("already started")
+	}
+	rs.isRunning.Store(true)
 	go rs.run()
-
 	return nil
 }
 

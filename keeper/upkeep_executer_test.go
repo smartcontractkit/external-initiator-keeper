@@ -36,7 +36,7 @@ func setupExecuter(t *testing.T) (
 func setupHeadsSubscription(ethMock *mocks.EthClient) (getHeadsChannel func() chan<- *models.Head) {
 	sub := new(mocks.EthSubscription)
 	sub.On("Err").Return(nil)
-	sub.On("Unsubscribe").Return(nil).Once() // TODO - RYAN - this should get triggered, yeah?
+	sub.On("Unsubscribe").Return(nil).Once()
 	chchHeaders := make(chan chan<- *models.Head)
 	ethMock.
 		On("SubscribeNewHead", mock.Anything, mock.Anything).

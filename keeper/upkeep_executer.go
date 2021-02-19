@@ -64,8 +64,6 @@ func (executer upkeepExecuter) Start() error {
 		return errors.New("already started")
 	}
 	executer.isRunning.Store(true)
-	if executer.isRunning.Load() {
-	}
 	go executer.setRunsOnHeadSubscription()
 	go executer.run()
 	return nil

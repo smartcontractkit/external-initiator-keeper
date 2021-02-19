@@ -57,8 +57,22 @@ func setupRegistrySync(t *testing.T) (*gorm.DB, RegistrySynchronizer, *mocks.Eth
 	return db.DB(), synchronizer, ethMock, cleanup
 }
 
+func Test_RegistrySynchronizer_Start(t *testing.T) {
+	db, synchronizer, _, cleanup := setupRegistrySync(t)
+	defer cleanup()
+	reg := newRegistry()
+	err := db.Create(&reg).Error
+	require.NoError(t, err)
+
+	synchronizer.Start()
+	require.NoError(t, err)
+	defer synchronizer.Stop()
+
+	err = synchronizer.Start()
+	require.Error(t, err)
+}
+
 func Test_RegistrySynchronizer_AddsAndRemovesUpkeeps(t *testing.T) {
-	t.Parallel()
 	db, synchronizer, ethMock, cleanup := setupRegistrySync(t)
 	defer cleanup()
 	reg := newRegistry()
@@ -73,7 +87,8 @@ func Test_RegistrySynchronizer_AddsAndRemovesUpkeeps(t *testing.T) {
 	registryMock.MockResponse("getUpkeepCount", big.NewInt(3)).Once()
 	registryMock.MockResponse("getUpkeep", upkeep).Twice() // upkeeps 1 & 2
 
-	synchronizer.Start()
+	err = synchronizer.Start()
+	require.NoError(t, err)
 	defer synchronizer.Stop()
 
 	eitest.WaitForCount(t, db, registration{}, 2)
