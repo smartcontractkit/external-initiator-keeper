@@ -76,3 +76,9 @@ func mustNewKeyedTransactor(t *testing.T, key *ecdsa.PrivateKey, chainID int64) 
 	require.NoError(t, err)
 	return transactor
 }
+
+func AssertCount(t *testing.T, db *gorm.DB, model interface{}, expected int) {
+	var count int
+	db.Model(model).Count(&count)
+	require.Equal(t, expected, count)
+}

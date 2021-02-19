@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/jinzhu/gorm"
 	"github.com/smartcontractkit/chainlink/core/store/models"
+	"github.com/smartcontractkit/external-initiator/eitest"
 	"github.com/smartcontractkit/external-initiator/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,10 +22,10 @@ var executeGas = uint32(10_000)
 var checkGas = uint32(2_000_000)
 var blockCountPerTurn = uint32(20)
 
-func setupRegistryStore(t *testing.T) (*store.Client, RegistryStore, func()) {
-	db, cleanup := store.SetupTestDB(t)
-	regStore := NewRegistryStore(db.DB())
-	return db, regStore, cleanup
+func setupRegistryStore(t *testing.T) (*gorm.DB, RegistryStore, func()) {
+	dbClient, cleanup := store.SetupTestDB(t)
+	regStore := NewRegistryStore(dbClient.DB())
+	return dbClient.DB(), regStore, cleanup
 }
 
 func newRegistry() registry {
@@ -53,7 +55,7 @@ func TestRegistryStore_Registries(t *testing.T) {
 	defer cleanup()
 
 	reg := newRegistry()
-	err := db.DB().Create(&reg).Error
+	err := db.Create(&reg).Error
 	require.NoError(t, err)
 
 	reg2 := registry{
@@ -64,7 +66,7 @@ func TestRegistryStore_Registries(t *testing.T) {
 		ReferenceID: models.NewID().String(),
 	}
 
-	err = db.DB().Create(&reg2).Error
+	err = db.Create(&reg2).Error
 	require.NoError(t, err)
 
 	existingRegistries, err := regStore.Registries()
@@ -76,10 +78,10 @@ func TestRegistryStore_RegistryIDs(t *testing.T) {
 	db, regStore, cleanup := setupRegistryStore(t)
 	defer cleanup()
 
-	db.DB().LogMode(true)
+	db.LogMode(true)
 
 	reg := newRegistry()
-	err := db.DB().Create(&reg).Error
+	err := db.Create(&reg).Error
 	require.NoError(t, err)
 
 	reg2 := registry{
@@ -90,7 +92,7 @@ func TestRegistryStore_RegistryIDs(t *testing.T) {
 		ReferenceID: models.NewID().String(),
 	}
 
-	err = db.DB().Create(&reg2).Error
+	err = db.Create(&reg2).Error
 	require.NoError(t, err)
 
 	ids, err := regStore.RegistryIDs()
@@ -105,7 +107,7 @@ func TestRegistryStore_Upsert(t *testing.T) {
 
 	// create registry
 	reg := newRegistry()
-	err := db.DB().Create(&reg).Error
+	err := db.Create(&reg).Error
 	require.NoError(t, err)
 
 	// create registration
@@ -114,9 +116,9 @@ func TestRegistryStore_Upsert(t *testing.T) {
 	err = regStore.Upsert(newRegistration)
 	require.NoError(t, err)
 
-	assertRegistrationCount(t, db, 1)
+	eitest.AssertCount(t, db, &registration{}, 1)
 	var existingRegistration registration
-	err = db.DB().First(&existingRegistration).Error
+	err = db.First(&existingRegistration).Error
 	require.NoError(t, err)
 	require.Equal(t, executeGas, existingRegistration.ExecuteGas)
 	require.Equal(t, checkData, existingRegistration.CheckData)
@@ -130,8 +132,8 @@ func TestRegistryStore_Upsert(t *testing.T) {
 	}
 	err = regStore.Upsert(updatedRegistration)
 	require.NoError(t, err)
-	assertRegistrationCount(t, db, 1)
-	err = db.DB().First(&existingRegistration).Error
+	eitest.AssertCount(t, db, &registration{}, 1)
+	err = db.First(&existingRegistration).Error
 	require.NoError(t, err)
 	require.Equal(t, uint32(20_000), existingRegistration.ExecuteGas)
 	require.Equal(t, "8888", common.Bytes2Hex(existingRegistration.CheckData))
@@ -142,7 +144,7 @@ func TestRegistryStore_BatchDelete(t *testing.T) {
 	defer cleanup()
 
 	reg := newRegistry()
-	err := db.DB().Create(&reg).Error
+	err := db.Create(&reg).Error
 	require.NoError(t, err)
 
 	registrations := [3]registration{
@@ -152,16 +154,16 @@ func TestRegistryStore_BatchDelete(t *testing.T) {
 	}
 
 	for _, reg := range registrations {
-		err = db.DB().Create(&reg).Error
+		err = db.Create(&reg).Error
 		require.NoError(t, err)
 	}
 
-	assertRegistrationCount(t, db, 3)
+	eitest.AssertCount(t, db, &registration{}, 3)
 
 	err = regStore.BatchDelete(reg.ID, []uint64{0, 2})
 	require.NoError(t, err)
 
-	assertRegistrationCount(t, db, 1)
+	eitest.AssertCount(t, db, &registration{}, 1)
 }
 
 func TestRegistryStore_DeleteRegistryByJobID(t *testing.T) {
@@ -169,7 +171,7 @@ func TestRegistryStore_DeleteRegistryByJobID(t *testing.T) {
 	defer cleanup()
 
 	reg := newRegistry()
-	err := db.DB().Create(&reg).Error
+	err := db.Create(&reg).Error
 	require.NoError(t, err)
 
 	registrations := [3]registration{
@@ -179,17 +181,17 @@ func TestRegistryStore_DeleteRegistryByJobID(t *testing.T) {
 	}
 
 	for _, reg := range registrations {
-		err = db.DB().Create(&reg).Error
+		err = db.Create(&reg).Error
 		require.NoError(t, err)
 	}
 
-	assertRegistrationCount(t, db, 3)
+	eitest.AssertCount(t, db, &registration{}, 3)
 
 	err = regStore.DeleteRegistryByJobID(reg.JobID)
 	require.NoError(t, err)
 
-	assertRegistryCount(t, db, 0)
-	assertRegistrationCount(t, db, 0)
+	eitest.AssertCount(t, db, registry{}, 0)
+	eitest.AssertCount(t, db, &registration{}, 0)
 }
 
 func TestRegistryStore_Eligibile_BlockCountPerTurn(t *testing.T) {
@@ -219,9 +221,9 @@ func TestRegistryStore_Eligibile_BlockCountPerTurn(t *testing.T) {
 		NumKeepers:        1,
 		ReferenceID:       models.NewID().String(),
 	}
-	err := db.DB().Create(&reg1).Error
+	err := db.Create(&reg1).Error
 	require.NoError(t, err)
-	err = db.DB().Create(&reg2).Error
+	err = db.Create(&reg2).Error
 	require.NoError(t, err)
 
 	registrations := [3]registration{
@@ -245,7 +247,7 @@ func TestRegistryStore_Eligibile_BlockCountPerTurn(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	assertRegistrationCount(t, db, 3)
+	eitest.AssertCount(t, db, &registration{}, 3)
 
 	elligibleRegistrations, err := regStore.Eligible(blockheight)
 	assert.NoError(t, err)
@@ -277,15 +279,15 @@ func TestRegistryStore_Eligibile_KeepersRotate(t *testing.T) {
 		ReferenceID:       models.NewID().String(),
 	}
 
-	err := db.DB().Create(&reg).Error
+	err := db.Create(&reg).Error
 	require.NoError(t, err)
 
 	upkeep := newRegistration(reg, 0)
 	err = regStore.Upsert(upkeep)
 	require.NoError(t, err)
 
-	assertRegistryCount(t, db, 1)
-	assertRegistrationCount(t, db, 1)
+	eitest.AssertCount(t, db, registry{}, 1)
+	eitest.AssertCount(t, db, &registration{}, 1)
 
 	// out of 5 valid block heights, with 5 keepers, we are eligible
 	// to submit on exactly 1 of them
@@ -315,7 +317,7 @@ func TestRegistryStore_UpkeepCount(t *testing.T) {
 	defer cleanup()
 
 	reg := newRegistry()
-	err := db.DB().Create(&reg).Error
+	err := db.Create(&reg).Error
 	require.NoError(t, err)
 
 	count, err := regStore.UpkeepCount(reg)
@@ -329,23 +331,11 @@ func TestRegistryStore_UpkeepCount(t *testing.T) {
 	}
 
 	for _, reg := range registrations {
-		err = db.DB().Create(&reg).Error
+		err = db.Create(&reg).Error
 		require.NoError(t, err)
 	}
 
 	count, err = regStore.UpkeepCount(reg)
 	require.NoError(t, err)
 	require.Equal(t, uint64(3), count)
-}
-
-func assertRegistryCount(t *testing.T, db *store.Client, expected int) {
-	var count int
-	db.DB().Model(&registry{}).Count(&count)
-	require.Equal(t, expected, count)
-}
-
-func assertRegistrationCount(t *testing.T, db *store.Client, expected int) {
-	var count int
-	db.DB().Model(&registration{}).Count(&count)
-	require.Equal(t, expected, count)
 }
