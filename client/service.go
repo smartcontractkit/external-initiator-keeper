@@ -39,11 +39,6 @@ func startService(
 		Delay:    config.ChainlinkRetryDelay,
 	}
 
-	runtimeConfig := store.RuntimeConfig{
-		KeeperEthEndpoint:          config.KeeperEthEndpoint,
-		KeeperRegistrySyncInterval: config.KeeperRegistrySyncInterval,
-	}
-
 	chainlinkClient := chainlink.NewClient(
 		config.InitiatorToChainlinkAccessKey,
 		config.InitiatorToChainlinkSecret,
@@ -51,10 +46,16 @@ func startService(
 		retryConfig,
 	)
 
-	srv, err := NewService(dbClient, chainlinkClient, runtimeConfig)
+	ethClient, err := eth.NewClient(config.KeeperEthEndpoint)
 	if err != nil {
 		logger.Fatal(err)
 	}
+	err = ethClient.Dial(context.Background())
+	if err != nil {
+		logger.Fatal(err)
+	}
+
+	srv := NewService(dbClient, chainlinkClient, ethClient, config)
 
 	go func() {
 		err := srv.Run()
@@ -62,9 +63,6 @@ func startService(
 			logger.Fatal(err)
 		}
 	}()
-
-	keeperStore := keeper.NewRegistryStore(dbClient.DB())
-	go RunWebserver(config.ChainlinkToInitiatorAccessKey, config.ChainlinkToInitiatorSecret, keeperStore, config.Port)
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt)
@@ -78,8 +76,8 @@ func startService(
 // the external initiator.
 type Service struct {
 	clNode               chainlink.Client
-	store                storeInterface
-	runtimeConfig        store.RuntimeConfig
+	registryStore        keeper.RegistryStore
+	config               Config
 	upkeepExecuter       keeper.UpkeepExecuter
 	registrySynchronizer keeper.RegistrySynchronizer
 }
@@ -89,26 +87,20 @@ type Service struct {
 func NewService(
 	dbClient storeInterface,
 	clNode chainlink.Client,
-	runtimeConfig store.RuntimeConfig,
-) (*Service, error) {
-	ethClient, err := eth.NewClient(runtimeConfig.KeeperEthEndpoint)
-	if err != nil {
-		return nil, err
-	}
-	err = ethClient.Dial(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	upkeepExecuter := keeper.NewUpkeepExecuter(dbClient.DB(), clNode, ethClient)
-	registrySynchronizer := keeper.NewRegistrySynchronizer(dbClient.DB(), ethClient, runtimeConfig.KeeperRegistrySyncInterval)
+	ethClient eth.Client,
+	config Config,
+) *Service {
+	registryStore := keeper.NewRegistryStore(dbClient.DB())
+	upkeepExecuter := keeper.NewUpkeepExecuter(registryStore, clNode, ethClient)
+	registrySynchronizer := keeper.NewRegistrySynchronizer(registryStore, ethClient, config.KeeperRegistrySyncInterval)
 
 	return &Service{
-		store:                dbClient,
+		registryStore:        registryStore,
 		clNode:               clNode,
-		runtimeConfig:        runtimeConfig,
+		config:               config,
 		upkeepExecuter:       upkeepExecuter,
 		registrySynchronizer: registrySynchronizer,
-	}, nil
+	}
 }
 
 // Run loads subscriptions, validates and subscribes to them.
@@ -124,6 +116,8 @@ func (srv *Service) Run() error {
 		return err
 	}
 
+	go RunWebserver(srv.config.ChainlinkToInitiatorAccessKey, srv.config.ChainlinkToInitiatorSecret, srv.registryStore, srv.config.Port)
+
 	return nil
 }
 
@@ -133,7 +127,7 @@ func (srv *Service) Close() {
 	srv.upkeepExecuter.Stop()
 	srv.registrySynchronizer.Stop()
 
-	err := srv.store.Close()
+	err := srv.registryStore.Close()
 	if err != nil {
 		logger.Error(err)
 	}

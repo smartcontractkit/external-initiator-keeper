@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/jinzhu/gorm"
 	"github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/services/eth"
 	"github.com/smartcontractkit/chainlink/core/store/models"
@@ -27,7 +26,7 @@ const (
 )
 
 var (
-	performUpkeepHex = utils.AddHexPrefix(common.Bytes2Hex(upkeepRegistryABI.Methods[performUpkeep].ID))
+	performUpkeepHex = utils.AddHexPrefix(common.Bytes2Hex(UpkeepRegistryABI.Methods[performUpkeep].ID))
 )
 
 type UpkeepExecuter interface {
@@ -35,12 +34,12 @@ type UpkeepExecuter interface {
 	Stop()
 }
 
-func NewUpkeepExecuter(dbClient *gorm.DB, clNode chainlink.Client, ethClient eth.Client) UpkeepExecuter {
+func NewUpkeepExecuter(registryStore RegistryStore, clNode chainlink.Client, ethClient eth.Client) UpkeepExecuter {
 	return upkeepExecuter{
 		blockHeight:    atomic.NewUint64(0),
 		chainlinkNode:  clNode,
 		ethClient:      ethClient,
-		registryStore:  NewRegistryStore(dbClient),
+		registryStore:  registryStore,
 		isRunning:      atomic.NewBool(false),
 		executionQueue: make(chan struct{}, executionQueueSize),
 		chDone:         make(chan struct{}),
@@ -117,7 +116,7 @@ func (executer upkeepExecuter) execute(registration registration) {
 		<-executer.executionQueue
 	}()
 
-	checkPayload, err := upkeepRegistryABI.Pack(
+	checkPayload, err := UpkeepRegistryABI.Pack(
 		checkUpkeep,
 		big.NewInt(int64(registration.UpkeepID)),
 		registration.Registry.From,
@@ -142,7 +141,7 @@ func (executer upkeepExecuter) execute(registration registration) {
 		return
 	}
 
-	res, err := upkeepRegistryABI.Unpack(checkUpkeep, result)
+	res, err := UpkeepRegistryABI.Unpack(checkUpkeep, result)
 	if err != nil {
 		logger.Error(err)
 		return
@@ -154,7 +153,7 @@ func (executer upkeepExecuter) execute(registration registration) {
 		return
 	}
 
-	performPayload, err := upkeepRegistryABI.Pack(
+	performPayload, err := UpkeepRegistryABI.Pack(
 		performUpkeep,
 		big.NewInt(int64(registration.UpkeepID)),
 		performData,

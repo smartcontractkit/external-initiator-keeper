@@ -8,7 +8,7 @@ require (
 	github.com/bmizerany/assert v0.0.0-20160611221934-b7ed37b82869
 	github.com/centrifuge/go-substrate-rpc-client v2.0.0+incompatible
 	github.com/cmars/basen v0.0.0-20150613233007-fe3947df716e // indirect
-	github.com/ethereum/go-ethereum v1.9.24
+	github.com/ethereum/go-ethereum v1.9.25
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a
 	github.com/gin-gonic/gin v1.6.0
 	github.com/golang-collections/go-datastructures v0.0.0-20150211160725-59788d5eb259
@@ -25,6 +25,7 @@ require (
 	github.com/pierrec/xxHash v0.1.5 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/smartcontractkit/chainlink v0.9.5-0.20201214122441-66aaea171293
+	github.com/smartcontractkit/libocr v0.0.0-20201209002813-4110928c10ff
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/objx v0.2.0 // indirect

@@ -26,7 +26,8 @@ func setupExecuter(t *testing.T) (
 	db, cleanup := store.SetupTestDB(t)
 	clMock := new(mocks.ChainlinkClient)
 	ethMock := new(mocks.EthClient)
-	executer := NewUpkeepExecuter(db.DB(), clMock, ethMock)
+	regStore := NewRegistryStore(db.DB())
+	executer := NewUpkeepExecuter(regStore, clMock, ethMock)
 	return db.DB(), executer, clMock, ethMock, cleanup
 }
 
@@ -96,7 +97,7 @@ func Test_UpkeepExecuter_PerformsUpkeep_Happy(t *testing.T) {
 	err = db.Create(&upkeep).Error
 	require.NoError(t, err)
 
-	registryMock := eitest.NewContractMockReceiver(t, ethMock, upkeepRegistryABI, reg.Address)
+	registryMock := eitest.NewContractMockReceiver(t, ethMock, UpkeepRegistryABI, reg.Address)
 	registryMock.MockResponse("checkUpkeep", checkUpkeepResponse)
 
 	clMock.

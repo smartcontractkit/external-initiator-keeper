@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/jinzhu/gorm"
 	"github.com/smartcontractkit/chainlink/core/logger"
 	"github.com/smartcontractkit/chainlink/core/services/eth"
 	"github.com/smartcontractkit/external-initiator/keeper/keeper_registry_contract"
@@ -15,10 +14,10 @@ type RegistrySynchronizer interface {
 	Stop()
 }
 
-func NewRegistrySynchronizer(dbClient *gorm.DB, ethClient eth.Client, syncInterval time.Duration) RegistrySynchronizer {
+func NewRegistrySynchronizer(registryStore RegistryStore, ethClient eth.Client, syncInterval time.Duration) RegistrySynchronizer {
 	return registrySynchronizer{
 		ethClient:     ethClient,
-		registryStore: NewRegistryStore(dbClient),
+		registryStore: registryStore,
 		interval:      syncInterval,
 		chDone:        make(chan struct{}),
 	}

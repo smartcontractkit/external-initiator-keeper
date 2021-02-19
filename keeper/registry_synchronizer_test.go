@@ -52,7 +52,8 @@ var upkeep = struct {
 func setupRegistrySync(t *testing.T) (*gorm.DB, RegistrySynchronizer, *mocks.EthClient, func()) {
 	db, cleanup := store.SetupTestDB(t)
 	ethMock := new(mocks.EthClient)
-	synchronizer := NewRegistrySynchronizer(db.DB(), ethMock, syncTime)
+	regStore := NewRegistryStore(db.DB())
+	synchronizer := NewRegistrySynchronizer(regStore, ethMock, syncTime)
 	return db.DB(), synchronizer, ethMock, cleanup
 }
 
@@ -64,7 +65,7 @@ func Test_RegistrySynchronizer_AddsAndRemovesUpkeeps(t *testing.T) {
 	err := db.Create(&reg).Error
 	require.NoError(t, err)
 
-	registryMock := eitest.NewContractMockReceiver(t, ethMock, upkeepRegistryABI, reg.Address)
+	registryMock := eitest.NewContractMockReceiver(t, ethMock, UpkeepRegistryABI, reg.Address)
 	cancelledUpkeeps := []*big.Int{big.NewInt(0)}
 	registryMock.MockResponse("getConfig", regConfig).Once()
 	registryMock.MockResponse("getKeeperList", []common.Address{reg.From}).Once()
