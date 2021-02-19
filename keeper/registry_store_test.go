@@ -112,7 +112,6 @@ func TestRegistryStore_Upsert(t *testing.T) {
 
 	// create registration
 	newRegistration := newRegistration(reg, 0)
-
 	err = regStore.Upsert(newRegistration)
 	require.NoError(t, err)
 
@@ -312,7 +311,7 @@ func TestRegistryStore_Eligibile_KeepersRotate(t *testing.T) {
 	require.Equal(t, 1, totalEligible)
 }
 
-func TestRegistryStore_UpkeepCount(t *testing.T) {
+func TestRegistryStore_NextUpkeepID(t *testing.T) {
 	db, regStore, cleanup := setupRegistryStore(t)
 	defer cleanup()
 
@@ -320,22 +319,23 @@ func TestRegistryStore_UpkeepCount(t *testing.T) {
 	err := db.Create(&reg).Error
 	require.NoError(t, err)
 
-	count, err := regStore.UpkeepCount(reg)
+	nextID, err := regStore.NextUpkeepID(reg)
 	require.NoError(t, err)
-	require.Equal(t, uint64(0), count)
+	require.Equal(t, uint64(0), nextID)
 
-	registrations := [3]registration{
-		newRegistration(reg, 0),
-		newRegistration(reg, 1),
-		newRegistration(reg, 2),
-	}
-
-	for _, reg := range registrations {
-		err = db.Create(&reg).Error
-		require.NoError(t, err)
-	}
-
-	count, err = regStore.UpkeepCount(reg)
+	upkeep := newRegistration(reg, 0)
+	err = regStore.Upsert(upkeep)
 	require.NoError(t, err)
-	require.Equal(t, uint64(3), count)
+
+	nextID, err = regStore.NextUpkeepID(reg)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), nextID)
+
+	upkeep = newRegistration(reg, 3)
+	err = regStore.Upsert(upkeep)
+	require.NoError(t, err)
+
+	nextID, err = regStore.NextUpkeepID(reg)
+	require.NoError(t, err)
+	require.Equal(t, uint64(4), nextID)
 }

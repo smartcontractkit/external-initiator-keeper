@@ -13,7 +13,7 @@ type RegistryStore interface {
 	BatchDelete(registryID uint32, upkeedIDs []uint64) error
 	DeleteRegistryByJobID(jobID *models.ID) error
 	Eligible(blockNumber uint64) ([]registration, error)
-	UpkeepCount(registry registry) (uint64, error)
+	NextUpkeepID(registry registry) (uint64, error)
 	DB() *gorm.DB
 	Close() error
 }
@@ -93,16 +93,16 @@ func (rm registryStore) Eligible(blockNumber uint64) (result []registration, _ e
 	return result, err
 }
 
-func (rm registryStore) UpkeepCount(reg registry) (count uint64, _ error) {
-	err := rm.dbClient.
+// NextUpkeepID returns the largest upkeepID + 1, indicating the expected next upkeepID
+// to sync from the contract
+func (rm registryStore) NextUpkeepID(reg registry) (nextID uint64, err error) {
+	err = rm.dbClient.
 		Model(&registration{}).
 		Where("registry_id = ?", reg.ID).
-		Count(&count).
-		Error
-	if err != nil {
-		return 0, err
-	}
-	return count, nil
+		Select("coalesce(max(upkeep_id), -1) + 1").
+		Row().
+		Scan(&nextID)
+	return nextID, err
 }
 
 func (rm registryStore) DB() *gorm.DB {

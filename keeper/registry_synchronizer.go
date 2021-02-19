@@ -60,8 +60,6 @@ func (rs registrySynchronizer) run() {
 		case <-rs.chDone:
 			return
 		case <-ticker.C:
-			// TODO - if sync takes too long? need a queue approach like in executer
-			// https://www.pivotaltracker.com/story/show/176747117
 			rs.performFullSync()
 		}
 	}
@@ -77,6 +75,8 @@ func (rs registrySynchronizer) performFullSync() {
 
 	logger.Debug("performing full sync of keeper registries")
 
+	// DEV: assumign that number of registries is relatively low
+	// otherwise, this needs to be batched
 	registries, err := rs.registryStore.Registries()
 	if err != nil {
 		logger.Error(err)
@@ -112,38 +112,21 @@ func (rs registrySynchronizer) syncRegistry(registry registry) {
 		return
 	}
 
-	// delete cancelled upkeeps
-	cancelledBigs, err := contract.GetCanceledUpkeepList(nil)
+	// add new upkeeps, update existing upkeeps
+	nextUpkeepID, err := rs.registryStore.NextUpkeepID(registry)
 	if err != nil {
 		logger.Error(err)
 		return
-	}
-	cancelled := make([]uint64, len(cancelledBigs))
-	for idx, upkeepID := range cancelledBigs {
-		cancelled[idx] = upkeepID.Uint64()
-	}
-	cancelledSet := make(map[uint64]bool)
-	for _, upkeepID := range cancelled {
-		cancelledSet[upkeepID] = true
-	}
-	err = rs.registryStore.BatchDelete(registry.ID, cancelled)
-	if err != nil {
-		logger.Error(err)
 	}
 
-	// add new upkeeps, update existing upkeeps
-	count, err := contract.GetUpkeepCount(nil)
+	countOnContractBig, err := contract.GetUpkeepCount(nil)
 	if err != nil {
 		logger.Error(err)
 		return
 	}
-	var needToUpsert []uint64
-	for upkeepID := uint64(0); upkeepID < count.Uint64(); upkeepID++ {
-		if !cancelledSet[upkeepID] {
-			needToUpsert = append(needToUpsert, upkeepID)
-		}
-	}
-	for _, upkeepID := range needToUpsert {
+	countOnContract := countOnContractBig.Uint64()
+
+	for upkeepID := nextUpkeepID; upkeepID < countOnContract; upkeepID++ {
 		upkeepConfig, err := contract.GetUpkeep(nil, big.NewInt(int64(upkeepID)))
 		if err != nil {
 			logger.Error(err)
@@ -168,5 +151,21 @@ func (rs registrySynchronizer) syncRegistry(registry registry) {
 		if err != nil {
 			logger.Error(err)
 		}
+	}
+
+	// delete cancelled upkeeps
+	cancelledBigs, err := contract.GetCanceledUpkeepList(nil)
+	if err != nil {
+		logger.Error(err)
+		return
+	}
+	cancelled := make([]uint64, len(cancelledBigs))
+	for idx, upkeepID := range cancelledBigs {
+		cancelled[idx] = upkeepID.Uint64()
+	}
+	err = rs.registryStore.BatchDelete(registry.ID, cancelled)
+	if err != nil {
+		logger.Error(err)
+		return
 	}
 }
