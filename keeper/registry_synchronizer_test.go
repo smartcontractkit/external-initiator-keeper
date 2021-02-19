@@ -11,9 +11,10 @@ import (
 	"github.com/smartcontractkit/external-initiator/internal/mocks"
 	"github.com/smartcontractkit/external-initiator/store"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
-const syncTime = 3 * time.Second
+const syncInterval = 3 * time.Second
 
 var regConfig = struct {
 	PaymentPremiumPPB uint32
@@ -49,11 +50,18 @@ var upkeep = struct {
 	MaxValidBlocknumber: 1_000_000_000,
 }
 
-func setupRegistrySync(t *testing.T) (*gorm.DB, RegistrySynchronizer, *mocks.EthClient, func()) {
+func setupRegistrySync(t *testing.T) (*gorm.DB, registrySynchronizer, *mocks.EthClient, func()) {
 	db, cleanup := store.SetupTestDB(t)
 	ethMock := new(mocks.EthClient)
 	regStore := NewRegistryStore(db.DB())
-	synchronizer := NewRegistrySynchronizer(regStore, ethMock, syncTime)
+	synchronizer := registrySynchronizer{
+		ethClient:     ethMock,
+		registryStore: regStore,
+		interval:      syncInterval,
+		isRunning:     atomic.NewBool(false),
+		isSyncing:     atomic.NewBool(false),
+		chDone:        make(chan struct{}),
+	}
 	return db.DB(), synchronizer, ethMock, cleanup
 }
 
@@ -87,12 +95,10 @@ func Test_RegistrySynchronizer_AddsAndRemovesUpkeeps(t *testing.T) {
 	registryMock.MockResponse("getUpkeepCount", big.NewInt(3)).Once()
 	registryMock.MockResponse("getUpkeep", upkeep).Twice() // upkeeps 1 & 2
 
-	err = synchronizer.Start()
-	require.NoError(t, err)
-	defer synchronizer.Stop()
+	synchronizer.performFullSync()
 
-	eitest.WaitForCount(t, db, registration{}, 2)
-	eitest.WaitForCount(t, db, registry{}, 1)
+	eitest.AssertCount(t, db, registry{}, 1)
+	eitest.AssertCount(t, db, registration{}, 2)
 	ethMock.AssertExpectations(t)
 
 	var upkeepRegistration registration
@@ -108,7 +114,9 @@ func Test_RegistrySynchronizer_AddsAndRemovesUpkeeps(t *testing.T) {
 	registryMock.MockResponse("getCanceledUpkeepList", cancelledUpkeeps).Once()
 	registryMock.MockResponse("getUpkeepCount", big.NewInt(3)).Once()
 
-	eitest.WaitForCount(t, db, registration{}, 0)
-	eitest.WaitForCount(t, db, registry{}, 1)
+	synchronizer.performFullSync()
+
+	eitest.AssertCount(t, db, registry{}, 1)
+	eitest.AssertCount(t, db, registration{}, 0)
 	ethMock.AssertExpectations(t)
 }
