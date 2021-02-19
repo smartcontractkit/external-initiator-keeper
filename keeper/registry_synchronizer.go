@@ -2,7 +2,9 @@ package keeper
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/smartcontractkit/chainlink/core/logger"
@@ -10,6 +12,10 @@ import (
 	"github.com/smartcontractkit/external-initiator/keeper/keeper_registry_contract"
 	"go.uber.org/atomic"
 )
+
+// max goroutines is a product of these queue sizes
+const syncRegistryQueueSize = 3
+const syncUpkeepQueueSize = 10
 
 type RegistrySynchronizer interface {
 	Start() error
@@ -22,7 +28,6 @@ func NewRegistrySynchronizer(keeperStore Store, ethClient eth.Client, syncInterv
 		keeperStore: keeperStore,
 		interval:    syncInterval,
 		isRunning:   atomic.NewBool(false),
-		isSyncing:   atomic.NewBool(false),
 		chDone:      make(chan struct{}),
 	}
 }
@@ -65,107 +70,132 @@ func (rs registrySynchronizer) run() {
 	}
 }
 
+// performFullSync syncs every registy in the database
+// It blocks until the full sync is complete
 func (rs registrySynchronizer) performFullSync() {
-	// skip syncing if previous sync is unfinished
-	if rs.isSyncing.Load() {
-		return
-	}
-	rs.isSyncing.Store(true)
-	defer func() { rs.isSyncing.Store(false) }()
+	logger.Debug("performing full sync of all keeper registries")
 
-	logger.Debug("performing full sync of keeper registries")
-
-	// DEV: assumign that number of registries is relatively low
-	// otherwise, this needs to be batched
 	registries, err := rs.keeperStore.Registries()
 	if err != nil {
 		logger.Error(err)
 	}
 
-	// TODO - parallellize this
-	// https://www.pivotaltracker.com/story/show/176747117
+	wg := sync.WaitGroup{}
+	wg.Add(len(registries))
+
+	// batch sync registries
+	chSyncRegistryQueue := make(chan struct{}, syncRegistryQueueSize)
+	done := func() { <-chSyncRegistryQueue; wg.Done() }
 	for _, registry := range registries {
-		rs.syncRegistry(registry)
+		chSyncRegistryQueue <- struct{}{}
+		go rs.syncRegistry(registry, done)
+	}
+
+	wg.Wait()
+}
+
+func (rs registrySynchronizer) syncRegistry(registry registry, doneCallback func()) {
+	defer doneCallback()
+
+	logger.Debugf("syncing registry %s", registry.Address.Hex())
+
+	err := func() error {
+		contract, err := keeper_registry_contract.NewKeeperRegistryContract(registry.Address, rs.ethClient)
+		if err != nil {
+			return err
+		}
+		registry, err = registry.SyncFromContract(contract)
+		if err != nil {
+			return err
+		}
+		if err = rs.keeperStore.UpsertRegistry(registry); err != nil {
+			return err
+		}
+		if err = rs.addNewUpkeeps(contract, registry); err != nil {
+			return err
+		}
+		if err = rs.deleteCanceledUpkeeps(contract, registry); err != nil {
+			return err
+		}
+		return nil
+	}()
+
+	if err != nil {
+		logger.Errorf("unable to sync registry %s, err: %v", registry.Address.Hex(), err)
 	}
 }
 
-func (rs registrySynchronizer) syncRegistry(registry registry) {
-	// WARN - this could get memory intensive depending on how many upkeeps there are
-	// especially because of keccak()
-	logger.Debugf("syncing registry %s", registry.Address.Hex())
-
-	contract, err := keeper_registry_contract.NewKeeperRegistryContract(registry.Address, rs.ethClient)
+func (rs registrySynchronizer) addNewUpkeeps(
+	contract *keeper_registry_contract.KeeperRegistryContract,
+	reg registry,
+) error {
+	nextUpkeepID, err := rs.keeperStore.NextUpkeepIDForRegistry(reg)
 	if err != nil {
-		logger.Error(err)
-		return
-	}
-
-	registry, err = registry.SyncFromContract(contract)
-	if err != nil {
-		logger.Error(err)
-		return
-	}
-
-	err = rs.keeperStore.UpsertRegistry(registry)
-	if err != nil {
-		logger.Error(err)
-		return
-	}
-
-	// add new upkeeps, update existing upkeeps
-	nextUpkeepID, err := rs.keeperStore.NextUpkeepIDForRegistry(registry)
-	if err != nil {
-		logger.Error(err)
-		return
+		return err
 	}
 
 	countOnContractBig, err := contract.GetUpkeepCount(nil)
 	if err != nil {
-		logger.Error(err)
-		return
+		return err
 	}
 	countOnContract := countOnContractBig.Uint64()
 
+	wg := sync.WaitGroup{}
+	wg.Add(int(countOnContract - nextUpkeepID))
+
+	// batch sync registries
+	chSyncUpkeepQueue := make(chan struct{}, syncUpkeepQueueSize)
+	done := func() { <-chSyncUpkeepQueue; wg.Done() }
 	for upkeepID := nextUpkeepID; upkeepID < countOnContract; upkeepID++ {
-		upkeepConfig, err := contract.GetUpkeep(nil, big.NewInt(int64(upkeepID)))
-		if err != nil {
-			logger.Error(err)
-			continue
-		}
-		positioningConstant, err := CalcPositioningConstant(upkeepID, registry.Address, registry.NumKeepers)
-		if err != nil {
-			logger.Error("unable to calculate positioning constant,", "err", err)
-			continue
-		}
-		newUpkeep := registration{
-			CheckData:           upkeepConfig.CheckData,
-			ExecuteGas:          upkeepConfig.ExecuteGas,
-			RegistryID:          registry.ID,
-			PositioningConstant: positioningConstant,
-			UpkeepID:            upkeepID,
-		}
-
-		// TODO - parallelize
-		// https://www.pivotaltracker.com/story/show/176747117
-		err = rs.keeperStore.UpsertUpkeep(newUpkeep)
+		chSyncUpkeepQueue <- struct{}{}
+		err := rs.syncUpkeep(contract, reg, upkeepID, done)
 		if err != nil {
 			logger.Error(err)
 		}
 	}
 
-	// delete cancelled upkeeps
-	cancelledBigs, err := contract.GetCanceledUpkeepList(nil)
+	wg.Wait()
+	return nil
+}
+
+func (rs registrySynchronizer) deleteCanceledUpkeeps(
+	contract *keeper_registry_contract.KeeperRegistryContract,
+	reg registry,
+) error {
+	canceledBigs, err := contract.GetCanceledUpkeepList(nil)
 	if err != nil {
-		logger.Error(err)
-		return
+		return err
 	}
-	cancelled := make([]uint64, len(cancelledBigs))
-	for idx, upkeepID := range cancelledBigs {
-		cancelled[idx] = upkeepID.Uint64()
+	canceled := make([]uint64, len(canceledBigs))
+	for idx, upkeepID := range canceledBigs {
+		canceled[idx] = upkeepID.Uint64()
 	}
-	err = rs.keeperStore.BatchDeleteUpkeeps(registry.ID, cancelled)
+	return rs.keeperStore.BatchDeleteUpkeeps(reg.ID, canceled)
+}
+
+func (rs registrySynchronizer) syncUpkeep(
+	contract *keeper_registry_contract.KeeperRegistryContract,
+	registry registry,
+	upkeepID uint64,
+	doneCallback func(),
+) error {
+	defer doneCallback()
+
+	upkeepConfig, err := contract.GetUpkeep(nil, big.NewInt(int64(upkeepID)))
 	if err != nil {
-		logger.Error(err)
-		return
+		return err
 	}
+	positioningConstant, err := CalcPositioningConstant(upkeepID, registry.Address, registry.NumKeepers)
+	if err != nil {
+		return fmt.Errorf("unable to calculate positioning constant: %v", err)
+	}
+	newUpkeep := registration{
+		CheckData:           upkeepConfig.CheckData,
+		ExecuteGas:          upkeepConfig.ExecuteGas,
+		RegistryID:          registry.ID,
+		PositioningConstant: positioningConstant,
+		UpkeepID:            upkeepID,
+	}
+
+	return rs.keeperStore.UpsertUpkeep(newUpkeep)
 }

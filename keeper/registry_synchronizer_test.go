@@ -88,10 +88,10 @@ func Test_RegistrySynchronizer_AddsAndRemovesUpkeeps(t *testing.T) {
 	require.NoError(t, err)
 
 	registryMock := eitest.NewContractMockReceiver(t, ethMock, UpkeepRegistryABI, reg.Address)
-	cancelledUpkeeps := []*big.Int{big.NewInt(1)}
+	canceledUpkeeps := []*big.Int{big.NewInt(1)}
 	registryMock.MockResponse("getConfig", regConfig).Once()
 	registryMock.MockResponse("getKeeperList", []common.Address{reg.From}).Once()
-	registryMock.MockResponse("getCanceledUpkeepList", cancelledUpkeeps).Once()
+	registryMock.MockResponse("getCanceledUpkeepList", canceledUpkeeps).Once()
 	registryMock.MockResponse("getUpkeepCount", big.NewInt(3)).Once()
 	registryMock.MockResponse("getUpkeep", upkeep).Times(3) // sync all 3, then delete
 
@@ -108,10 +108,10 @@ func Test_RegistrySynchronizer_AddsAndRemovesUpkeeps(t *testing.T) {
 	require.Equal(t, upkeep.CheckData, upkeepRegistration.CheckData)
 	require.Equal(t, upkeep.ExecuteGas, upkeepRegistration.ExecuteGas)
 
-	cancelledUpkeeps = []*big.Int{big.NewInt(0), big.NewInt(1), big.NewInt(3)}
+	canceledUpkeeps = []*big.Int{big.NewInt(0), big.NewInt(1), big.NewInt(3)}
 	registryMock.MockResponse("getConfig", regConfig).Once()
 	registryMock.MockResponse("getKeeperList", []common.Address{reg.From}).Once()
-	registryMock.MockResponse("getCanceledUpkeepList", cancelledUpkeeps).Once()
+	registryMock.MockResponse("getCanceledUpkeepList", canceledUpkeeps).Once()
 	registryMock.MockResponse("getUpkeepCount", big.NewInt(5)).Once()
 	registryMock.MockResponse("getUpkeep", upkeep).Times(2) // two new upkeeps to sync
 

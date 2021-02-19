@@ -90,7 +90,6 @@ func (executer upkeepExecuter) processActiveRegistrations() {
 	// but will need a cap
 	logger.Debug("received new block, running checkUpkeep for keeper registrations")
 
-	// TODO - RYAN - this should be batched to avoid congestgion
 	activeRegistrations, err := executer.keeperStore.EligibleUpkeeps(executer.blockHeight.Load())
 	if err != nil {
 		logger.Errorf("unable to load active registrations: %v", err)
