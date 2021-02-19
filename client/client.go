@@ -93,6 +93,7 @@ func runCallback(v *viper.Viper, runner runner) {
 	err := validateParams(v, requiredConfig)
 	if err != nil {
 		logger.Error(err)
+		return
 	}
 
 	config := newConfigFromViper(v)
@@ -112,7 +113,6 @@ func validateParams(v *viper.Viper, required []string) error {
 	for _, k := range required {
 		if v.GetString(k) == "" {
 			msg := fmt.Sprintf("%s flag or EI_%s env must be set", k, strings.ToUpper(k))
-			logger.Error(msg)
 			missing = append(missing, msg)
 		}
 	}
