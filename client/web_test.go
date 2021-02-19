@@ -6,7 +6,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/smartcontractkit/chainlink/core/store/models"
+	"github.com/smartcontractkit/external-initiator/blockchain"
+	"github.com/smartcontractkit/external-initiator/eitest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDeleteController(t *testing.T) {
@@ -93,4 +97,63 @@ func TestRequireAuth(t *testing.T) {
 			assert.NotEqual(t, http.StatusUnauthorized, w.Code)
 		}
 	}
+}
+
+func TestValidateKeeperRequest_Error(t *testing.T) {
+	for _, request := range []CreateSubscriptionReq{
+		{ // missing From
+			JobID: models.NewID().String(),
+			Params: blockchain.Params{
+				Address: eitest.NewAddress().Hex(),
+			},
+		},
+		{ // missing Address
+			JobID: models.NewID().String(),
+			Params: blockchain.Params{
+				From: eitest.NewAddress().Hex(),
+			},
+		},
+		{ // missing JobID
+			Params: blockchain.Params{
+				From:    eitest.NewAddress().Hex(),
+				Address: eitest.NewAddress().Hex(),
+			},
+		},
+		{ // invalid JobID
+			JobID: "invalid",
+			Params: blockchain.Params{
+				From:    eitest.NewAddress().Hex(),
+				Address: eitest.NewAddress().Hex(),
+			},
+		},
+		{ // invalid From
+			JobID: models.NewID().String(),
+			Params: blockchain.Params{
+				From:    "0x1234",
+				Address: eitest.NewAddress().Hex(),
+			},
+		},
+		{ // invalid Address
+			JobID: models.NewID().String(),
+			Params: blockchain.Params{
+				From:    eitest.NewAddress().Hex(),
+				Address: "0x1234",
+			},
+		},
+	} {
+		err := validateKeeperRequest(&request)
+		require.Error(t, err)
+	}
+}
+
+func TestValidateKeeperRequest_Happy(t *testing.T) {
+	request := CreateSubscriptionReq{
+		JobID: models.NewID().String(),
+		Params: blockchain.Params{
+			From:    eitest.NewAddress().Hex(),
+			Address: eitest.NewAddress().Hex(),
+		},
+	}
+	err := validateKeeperRequest(&request)
+	require.NoError(t, err)
 }

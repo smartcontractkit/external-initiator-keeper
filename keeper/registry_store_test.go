@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/google/uuid"
 	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/external-initiator/store"
 	"github.com/stretchr/testify/assert"
@@ -36,7 +35,7 @@ func newRegistry() registry {
 		JobID:             jobID,
 		KeeperIndex:       0,
 		NumKeepers:        1,
-		ReferenceID:       uuid.New().String(),
+		ReferenceID:       models.NewID().String(),
 	}
 }
 
@@ -62,7 +61,7 @@ func TestRegistryStore_Registries(t *testing.T) {
 		CheckGas:    checkGas,
 		JobID:       models.NewID(),
 		From:        fromAddress,
-		ReferenceID: uuid.New().String(),
+		ReferenceID: models.NewID().String(),
 	}
 
 	err = db.DB().Create(&reg2).Error
@@ -88,7 +87,7 @@ func TestRegistryStore_RegistryIDs(t *testing.T) {
 		CheckGas:    checkGas,
 		JobID:       models.NewID(),
 		From:        fromAddress,
-		ReferenceID: uuid.New().String(),
+		ReferenceID: models.NewID().String(),
 	}
 
 	err = db.DB().Create(&reg2).Error
@@ -208,7 +207,7 @@ func TestRegistryStore_Eligibile_BlockCountPerTurn(t *testing.T) {
 		JobID:             models.NewID(),
 		KeeperIndex:       0,
 		NumKeepers:        1,
-		ReferenceID:       uuid.New().String(),
+		ReferenceID:       models.NewID().String(),
 	}
 	reg2 := registry{
 		Address:           common.HexToAddress("0x0000000000000000000000000000000000000321"),
@@ -218,7 +217,7 @@ func TestRegistryStore_Eligibile_BlockCountPerTurn(t *testing.T) {
 		JobID:             models.NewID(),
 		KeeperIndex:       0,
 		NumKeepers:        1,
-		ReferenceID:       uuid.New().String(),
+		ReferenceID:       models.NewID().String(),
 	}
 	err := db.DB().Create(&reg1).Error
 	require.NoError(t, err)
@@ -275,7 +274,7 @@ func TestRegistryStore_Eligibile_KeepersRotate(t *testing.T) {
 		JobID:             models.NewID(),
 		KeeperIndex:       0,
 		NumKeepers:        5,
-		ReferenceID:       uuid.New().String(),
+		ReferenceID:       models.NewID().String(),
 	}
 
 	err := db.DB().Create(&reg).Error

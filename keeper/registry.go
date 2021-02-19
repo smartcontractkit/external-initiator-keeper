@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/pborman/uuid"
 	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/external-initiator/keeper/keeper_registry_contract"
 )
@@ -26,7 +25,7 @@ func NewRegistry(address common.Address, from common.Address, jobID *models.ID) 
 		Address:     address,
 		From:        from,
 		JobID:       jobID,
-		ReferenceID: uuid.New(),
+		ReferenceID: models.NewID().String(),
 	}
 }
 

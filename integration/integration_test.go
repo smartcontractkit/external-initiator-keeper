@@ -5,15 +5,14 @@ import (
 	"encoding/json"
 	"math/big"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/google/uuid"
 	"github.com/onsi/gomega"
+	"github.com/smartcontractkit/chainlink/core/store/models"
 	"github.com/smartcontractkit/external-initiator/blockchain"
 	"github.com/smartcontractkit/external-initiator/client"
 	"github.com/smartcontractkit/external-initiator/eitest"
@@ -106,7 +105,7 @@ func TestKeeperEthIntegration(t *testing.T) {
 	}, 2*time.Second, 100*time.Millisecond).Should(gomega.BeNil())
 
 	// create job
-	jobID := strings.ReplaceAll(uuid.New().String(), "-", "")
+	jobID := models.NewID().String()
 	requestData := client.CreateSubscriptionReq{
 		JobID: jobID,
 		Params: blockchain.Params{

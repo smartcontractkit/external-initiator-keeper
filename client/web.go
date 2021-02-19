@@ -246,8 +246,15 @@ func (srv *HttpService) createKeeperSubscription(req CreateSubscriptionReq, c *g
 }
 
 func validateKeeperRequest(req *CreateSubscriptionReq) error {
-	if req.Params.Address == "" || req.Params.From == "" || req.JobID == "" {
-		return errors.New("missing required fields")
+	_, err := models.NewIDFromString(req.JobID)
+	if err != nil {
+		return errors.New("invalid or missing JobID")
+	}
+	if !common.IsHexAddress(req.Params.Address) {
+		return errors.New("invalid or missing address param")
+	}
+	if !common.IsHexAddress(req.Params.From) {
+		return errors.New("invalid or missing from param")
 	}
 	return nil
 }
