@@ -187,9 +187,9 @@ func (executer upkeepExecuter) execute(registration registration) {
 func (executer upkeepExecuter) setRunsOnHeadSubscription() {
 	headers := make(chan *models.Head)
 	sub, err := executer.ethClient.SubscribeNewHead(context.Background(), headers)
-	defer sub.Unsubscribe()
+	defer func() { sub.Unsubscribe() }()
 	if err != nil {
-		logger.Fatal(err)
+		logger.Fatal("unable to create head subscription", "err", err)
 	}
 
 	for {
@@ -197,7 +197,12 @@ func (executer upkeepExecuter) setRunsOnHeadSubscription() {
 		case <-executer.chDone:
 			return
 		case err := <-sub.Err():
-			logger.Errorf("error in keeper head subscription: %v", err)
+			logger.Warnf("error in keeper head subscription, attempting to restart: %v", err)
+			time.Sleep(3 * time.Second)
+			sub, err = executer.ethClient.SubscribeNewHead(context.Background(), headers)
+			if err != nil {
+				logger.Errorf("unable to renew head subscription", "err", err)
+			}
 		case head := <-headers:
 			executer.blockHeight.Store(uint64(head.Number))
 			executer.signalRun()

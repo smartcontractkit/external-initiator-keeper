@@ -33,9 +33,9 @@ func setupExecuter(t *testing.T) (
 
 // setupHeadsSubscription sets the mock calls for the head tracker and returns a blocking
 // function that yields the new heads channel for triggering new heads
-func setupHeadsSubscription(ethMock *mocks.EthClient) (getHeadsChannel func() chan<- *models.Head) {
+func setupHeadsSubscription(ethMock *mocks.EthClient) (func() chan<- *models.Head, *mocks.EthSubscription) {
 	sub := new(mocks.EthSubscription)
-	sub.On("Err").Return(nil)
+	sub.On("Err").Return(nil).Once()
 	sub.On("Unsubscribe").Return(nil).Once()
 	chchHeaders := make(chan chan<- *models.Head)
 	ethMock.
@@ -45,10 +45,10 @@ func setupHeadsSubscription(ethMock *mocks.EthClient) (getHeadsChannel func() ch
 			chchHeaders <- args.Get(1).(chan<- *models.Head)
 		}).
 		Once()
-
-	return func() chan<- *models.Head {
+	getHeadsChannel := func() chan<- *models.Head {
 		return <-chchHeaders
 	}
+	return getHeadsChannel, sub
 }
 
 var checkUpkeepResponse = struct {
@@ -81,7 +81,7 @@ func Test_UpkeepExecuter_ErrorsIfStartedTwice(t *testing.T) {
 func Test_UpkeepExecuter_PerformsUpkeep_Happy(t *testing.T) {
 	db, executer, clMock, ethMock, cleanup := setupExecuter(t)
 	defer cleanup()
-	getHeadsChannel := setupHeadsSubscription(ethMock)
+	getHeadsChannel, _ := setupHeadsSubscription(ethMock)
 
 	err := executer.Start()
 	require.NoError(t, err)
@@ -136,7 +136,7 @@ func Test_UpkeepExecuter_PerformsUpkeep_Happy(t *testing.T) {
 func Test_UpkeepExecuter_PerformsUpkeep_Error(t *testing.T) {
 	db, executer, clMock, ethMock, cleanup := setupExecuter(t)
 	defer cleanup()
-	getHeadsChannel := setupHeadsSubscription(ethMock)
+	getHeadsChannel, _ := setupHeadsSubscription(ethMock)
 
 	err := executer.Start()
 	require.NoError(t, err)
@@ -169,5 +169,46 @@ func Test_UpkeepExecuter_PerformsUpkeep_Error(t *testing.T) {
 	}
 
 	clMock.AssertExpectations(t)
+	ethMock.AssertExpectations(t)
+}
+
+func Test_UpkeepExecuter_PerformsUpkeep_ResubscribesToNewHeads(t *testing.T) {
+	_, executer, _, ethMock, cleanup := setupExecuter(t)
+	defer cleanup()
+
+	sub := new(mocks.EthSubscription)
+	chErr := make(chan error)
+
+	sub.On("Err").Return((<-chan error)(chErr)).Twice()
+	sub.On("Unsubscribe").Return(nil).Once()
+
+	chSubscriptionMade := make(chan struct{})
+
+	ethMock.
+		On("SubscribeNewHead", mock.Anything, mock.Anything).
+		Return(sub, nil).
+		Run(func(args mock.Arguments) {
+			chSubscriptionMade <- struct{}{}
+		}).
+		Twice()
+
+	err := executer.Start()
+	require.NoError(t, err)
+	defer executer.Stop()
+
+	select {
+	case <-time.NewTimer(3 * time.Second).C:
+		t.Fatal("first subscription never made")
+	case <-chSubscriptionMade:
+	}
+
+	chErr <- errors.New("subscription closed")
+
+	select {
+	case <-time.NewTimer(5 * time.Second).C:
+		t.Fatal("second subscription never made")
+	case <-chSubscriptionMade:
+	}
+
 	ethMock.AssertExpectations(t)
 }
