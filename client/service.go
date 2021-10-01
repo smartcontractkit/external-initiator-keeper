@@ -92,7 +92,7 @@ func NewService(
 ) *Service {
 	keeperStore := keeper.NewStore(dbClient.DB())
 	upkeepExecuter := keeper.NewUpkeepExecuter(keeperStore, clNode, ethClient)
-	registrySynchronizer := keeper.NewRegistrySynchronizer(keeperStore, ethClient, config.KeeperRegistrySyncInterval)
+	registrySynchronizer := keeper.NewRegistrySynchronizer(keeperStore, ethClient, config.KeeperRegistrySyncInterval, config.KeeperSyncUpkeepQueueSize)
 
 	return &Service{
 		keeperStore:          keeperStore,

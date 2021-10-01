@@ -13,32 +13,40 @@ import (
 	"go.uber.org/atomic"
 )
 
-// max goroutines is a product of these queue sizes
+// max goroutines is a product of syncRegistryQueueSize and syncUpkeepQueueSize (see func NewRegistrySynchronizer)
 const syncRegistryQueueSize = 3
-const syncUpkeepQueueSize = 10
+const defaultSyncUpkeepQueueSize = 10
 
 type RegistrySynchronizer interface {
 	Start() error
 	Stop()
 }
 
-func NewRegistrySynchronizer(keeperStore Store, ethClient eth.Client, syncInterval time.Duration) RegistrySynchronizer {
-	return registrySynchronizer{
-		ethClient:   ethClient,
-		keeperStore: keeperStore,
-		interval:    syncInterval,
-		isRunning:   atomic.NewBool(false),
-		chDone:      make(chan struct{}),
+func NewRegistrySynchronizer(keeperStore Store, ethClient eth.Client, syncInterval time.Duration, syncUpkeepQueueSize uint) RegistrySynchronizer {
+	rs := registrySynchronizer{
+		ethClient:           ethClient,
+		keeperStore:         keeperStore,
+		interval:            syncInterval,
+		isRunning:           atomic.NewBool(false),
+		chDone:              make(chan struct{}),
+		syncUpkeepQueueSize: syncUpkeepQueueSize,
 	}
+
+	if rs.syncUpkeepQueueSize <= 0 {
+		rs.syncUpkeepQueueSize = defaultSyncUpkeepQueueSize
+	}
+
+	return rs
 }
 
 type registrySynchronizer struct {
-	endpoint    string
-	ethClient   eth.Client
-	interval    time.Duration
-	isRunning   *atomic.Bool
-	isSyncing   *atomic.Bool
-	keeperStore Store
+	endpoint            string
+	ethClient           eth.Client
+	interval            time.Duration
+	isRunning           *atomic.Bool
+	isSyncing           *atomic.Bool
+	keeperStore         Store
+	syncUpkeepQueueSize uint
 
 	chDone chan struct{}
 }
@@ -144,7 +152,7 @@ func (rs registrySynchronizer) addNewUpkeeps(
 	wg.Add(int(countOnContract - nextUpkeepID))
 
 	// batch sync registries
-	chSyncUpkeepQueue := make(chan struct{}, syncUpkeepQueueSize)
+	chSyncUpkeepQueue := make(chan struct{}, rs.syncUpkeepQueueSize)
 	done := func() { <-chSyncUpkeepQueue; wg.Done() }
 	for upkeepID := nextUpkeepID; upkeepID < countOnContract; upkeepID++ {
 		chSyncUpkeepQueue <- struct{}{}

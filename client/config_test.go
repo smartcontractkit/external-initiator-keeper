@@ -23,4 +23,9 @@ func Test_newConfigFromViper(t *testing.T) {
 		assert.Equal(t, conf.ChainlinkToInitiatorAccessKey, "ci_accesskey")
 		assert.Equal(t, conf.ChainlinkToInitiatorSecret, "ci_secret")
 	})
+
+	t.Run("KeeperSyncUpkeepQueueSize has a default value set to 10", func(t *testing.T) {
+		conf := newConfigFromViper(viper.New())
+		assert.Equal(t, conf.KeeperSyncUpkeepQueueSize, uint(10))
+	})
 }

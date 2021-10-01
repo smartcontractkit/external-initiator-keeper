@@ -87,6 +87,7 @@ func TestKeeperEthIntegration(t *testing.T) {
 		ChainlinkToInitiatorSecret:    "secret",
 		Port:                          8080,
 		KeeperRegistrySyncInterval:    1 * time.Second,
+		KeeperSyncUpkeepQueueSize:     10,
 	}
 
 	keeperService := client.NewService(db, clMock, ethClient, config)

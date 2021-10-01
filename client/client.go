@@ -63,8 +63,11 @@ func generateCmd() *cobra.Command {
 	newcmd.Flags().String("keeper_eth_endpoint", "", "The ethereum endpoint to use for keeper jobs")
 	must(v.BindPFlag("keeper_eth_endpoint", newcmd.Flags().Lookup("keeper_eth_endpoint")))
 
-	newcmd.Flags().Duration("keeper_registry_sync_interval", 5*time.Minute, "The ethereum endpoint to use for keeper jobs")
+	newcmd.Flags().Duration("keeper_registry_sync_interval", 5*time.Minute, "The interval at which the keeper registry is synced")
 	must(v.BindPFlag("keeper_registry_sync_interval", newcmd.Flags().Lookup("keeper_registry_sync_interval")))
+
+	newcmd.Flags().Uint("keeper_sync_upkeep_queue_size", 10, "The maximum number of upkeeps that can be synced in parallel")
+	must(v.BindPFlag("keeper_sync_upkeep_queue_size", newcmd.Flags().Lookup("keeper_sync_upkeep_queue_size")))
 
 	v.SetEnvPrefix("EI")
 	v.AutomaticEnv()
@@ -84,6 +87,7 @@ var requiredConfig = []string{
 	"cl_retry_attempts",
 	"cl_retry_delay",
 	"keeper_eth_endpoint",
+	"keeper_sync_upkeep_queue_size",
 }
 
 // runner type matches the function signature of synchronizeForever

@@ -22,7 +22,8 @@ Following are the details of how to run the keeper node as External Initiator.
 | `EI_CI_ACCESSKEY`                  | The External Initiator access key, used for traffic flowing from Chainlink to this service | `<OUTGOINGTOKEN>`                                 |
 | `EI_CI_SECRET`                     | The External Initiator secret, used for traffic flowing from Chainlink to this service     | `<OUTGOINGSECRET>` |
 | `EI_KEEPER_ETH_ENDPOINT`           | The wss ethereum endpoint to use                                                           | `wss://infura.io/ws/v3/<your key>`                                 |
-| `EI_KEEPER_REGISTRY_SYNC_INTERVAL` | The interval at which the keeper registry is synced                                        | `30s`                                                              |
+| `EI_KEEPER_REGISTRY_SYNC_INTERVAL` | The interval at which the keeper registry is synced                                        | `30s`                                               |
+| `EI_KEEPER_SYNC_UPKEEP_QUEUE_SIZE` | The maximum number of upkeeps that can be synced in parallel                                   | `10`        |
 
 ## Build
 
@@ -68,7 +69,8 @@ Flags:
   --ic_accesskey string                      The Chainlink access key, used for traffic flowing from this Service to Chainlink
   --ic_secret string                         The Chainlink secret, used for traffic flowing from this Service to Chainlink
   --keeper_eth_endpoint string               The ethereum endpoint to use for keeper jobs
-  --keeper_registry_sync_interval duration   The ethereum endpoint to use for keeper jobs (default 5m0s)
+  --keeper_registry_sync_interval duration   The interval at which the keeper registry is synced (default 5m0s)
+  --keeper_sync_upkeep_queue_size uint       The maximum number of upkeeps that can be synced in parallel (default 10)
   --port int                                 The port for the EI API to listen on (default 8080)
 ```
 

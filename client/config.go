@@ -33,6 +33,8 @@ type Config struct {
 	KeeperEthEndpoint string
 	// The interval at which to sync keeper registries
 	KeeperRegistrySyncInterval time.Duration
+	// The max number of upkeeps that can be synced in parallel
+	KeeperSyncUpkeepQueueSize uint
 }
 
 // newConfigFromViper returns a Config based on the values supplied by viper.
@@ -50,5 +52,6 @@ func newConfigFromViper(v *viper.Viper) Config {
 		ChainlinkRetryDelay:           v.GetDuration("cl_retry_delay"),
 		KeeperEthEndpoint:             v.GetString("keeper_eth_endpoint"),
 		KeeperRegistrySyncInterval:    v.GetDuration("keeper_registry_sync_interval"),
+		KeeperSyncUpkeepQueueSize:     v.GetUint("keeper_sync_upkeep_queue_size"),
 	}
 }
